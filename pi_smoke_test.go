@@ -83,13 +83,17 @@ export default function (pi) {
 		t.Fatal(err)
 	}
 
-	for _, stage := range []string{"pi-run", "pi-restore"} {
+	for _, stage := range []string{"pi-run", "pi-restore", "pi-unavailable"} {
+		piBinary := pi
+		if stage == "pi-unavailable" {
+			piBinary = filepath.Join(root, "missing-pi")
+		}
 		ctx, cancel := context.WithTimeout(t.Context(), 45*time.Second)
 		cmd := exec.CommandContext(ctx, os.Args[0])
 		cmd.Env = append(cmd.Environ(),
 			"MYGO_WORK_SMOKE_STAGE="+stage, "MYGO_WORK_DATA_DIR="+profile, "MYGO_WORK_SMOKE_PROJECT="+project,
 			"MYGO_WORK_OPENCODE="+openCode, "XDG_CONFIG_HOME="+codeConfig,
-			"MYGO_WORK_PI="+pi, "PI_CODING_AGENT_DIR="+piConfig, "PI_OFFLINE=1", "PI_TELEMETRY=0",
+			"MYGO_WORK_PI="+piBinary, "PI_CODING_AGENT_DIR="+piConfig, "PI_OFFLINE=1", "PI_TELEMETRY=0",
 		)
 		cmd.Stdout, cmd.Stderr = os.Stdout, os.Stderr
 		err := cmd.Run()
@@ -115,6 +119,21 @@ func nativePiJourney(stage string, await func(string, string) error, eval, click
 	}
 	const ready = `document.querySelector(".footer")?.innerText.includes("Ready for new tasks")`
 	const piView = `document.querySelector(".composer .engine-label")?.textContent === "Pi"`
+	if stage == "pi-unavailable" {
+		if err := await("existing Pi workspace loaded without the Pi executable", piView+` && document.querySelector(".folder-row")`); err != nil {
+			return err
+		}
+		if err := click("Workspace actions"); err != nil {
+			return err
+		}
+		if err := await("only OpenCode recovery is available after removing Pi", `document.querySelector("[data-engines-checked]")?.innerText.includes("Switch to OpenCode") && !document.querySelector("[data-engines-checked]").innerText.includes("Coding engine")`); err != nil {
+			return err
+		}
+		if err := click("Switch to OpenCode"); err != nil {
+			return err
+		}
+		return await("workspace recovered to OpenCode", ready+` && !(`+piView+`)`)
+	}
 	if stage == "pi-run" {
 		if err := await("OpenCode workspace loaded before engine switch", ready+` && document.querySelector(".folder-row")`); err != nil {
 			return err
