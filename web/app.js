@@ -8,7 +8,7 @@ const dialog = document.getElementById("dialog");
 const state = {
   folders: [], sessions: new Map(), expanded: new Set(), options: new Map(), threads: new Map(), drafts: new Map(),
   directory: "", session: "", panel: "", sidebar: saved.get("sidebar") !== "hidden",
-  language: "zh-CN", version: "", engineError: "", connected: false, active: new Set(), submitting: new Set(),
+  platform: "darwin", language: "zh-CN", version: "", engineError: "", connected: false, active: new Set(), submitting: new Set(),
   filePath: ".", previewPath: "", editing: false,
 };
 
@@ -57,6 +57,7 @@ function report(error) {
 const runtimeFor = (directory = state.directory) => state.folders.find((folder) => folder.directory === directory)?.runtime || "opencode";
 const isPi = () => runtimeFor() === "pi";
 const runtimeName = () => isPi() ? "Pi" : "OpenCode";
+const folderLabel = () => tr(state.platform === "win32" || state.platform === "windows" ? "Show in File Explorer" : "Show in Finder");
 const lastSessionKey = (directory) => "lastSession:" + directory + (runtimeFor(directory) === "pi" ? ":pi" : "");
 
 function activeKey(directory = state.directory, id = state.session) {
@@ -171,7 +172,7 @@ function renderSidebar() {
   search.disabled = state.folders.length === 0;
   search.setAttribute("aria-label", tr("Search sessions"));
 
-  search.append(node("span", "key", "⇧⌘F"));
+  search.append(node("span", "key", state.platform === "darwin" ? "⇧⌘F" : "Ctrl+Shift+F"));
   sideBody.append(search);
   for (const folder of state.folders) {
     const group = node("div", "group");
@@ -599,9 +600,10 @@ function displayMessage(message, key) {
       const file = part.input?.filePath || part.input?.path;
       const writeTool = /edit|patch|write/.test(part.name);
       if (writeTool && part.status === "completed" && typeof file === "string") {
-        const directory = state.directory;
-        const relative = file.startsWith(directory + "/") ? file.slice(directory.length + 1) : file;
-        if (!relative.startsWith("/") && !relative.split("/").includes("..")) {
+        const directory = state.directory.replaceAll("\\", "/");
+        const path = file.replaceAll("\\", "/");
+        const relative = path.startsWith(directory + "/") ? path.slice(directory.length + 1) : path;
+        if (!relative.startsWith("/") && !/^[a-z]:/i.test(relative) && !relative.split("/").includes("..")) {
           element.append(button(relative, () => previewFile(relative), { glyph: "file-text", className: "secondary" }));
         }
       }
@@ -1003,31 +1005,31 @@ function showSearch() {
   void update();
 }
 
-function chooseRuntime(folder) {
-  const current = runtimeFor(folder.directory);
-  const engines = [
-    { key: "opencode", label: "OpenCode v2" },
-    { key: "pi", label: tr("Pi Coding Agent") },
-  ];
-  picker(tr("Coding engine"), engines, async ({ key }) => {
-    if (key === current) return;
-    try {
-      await call("SetWorkspaceRuntime", folder.directory, key);
-      saved.set("lastWorkspace", folder.directory);
-      location.reload();
-    } catch (error) {
-      report(error);
-    }
-  }, current);
+async function setWorkspaceRuntime(folder, key) {
+  if (key === runtimeFor(folder.directory)) return;
+  try {
+    await call("SetWorkspaceRuntime", folder.directory, key);
+    saved.set("lastWorkspace", folder.directory);
+    location.reload();
+  } catch (error) {
+    report(error);
+  }
 }
 
-function workspaceActions(folder) {
+function chooseRuntime(folder) {
+  const engines = [
+    { key: "opencode", label: "OpenCode v2" },
+    { key: "pi", label: "Pi Coding Agent" },
+  ];
+  picker(tr("Coding engine"), engines, ({ key }) => setWorkspaceRuntime(folder, key), runtimeFor(folder.directory));
+}
+
+async function workspaceActions(folder) {
   const content = showDialog(folder.name);
   content.append(node("p", "", folder.directory));
   const list = node("div", "picker-list");
   list.append(
-    button(tr("Coding engine"), () => chooseRuntime(folder), { glyph: "settings", className: "picker-item" }),
-    button(tr("Show in Finder"), () => { dialog.close(); void load("Reveal", folder.directory, "."); }, { glyph: "folder-open", className: "picker-item" }),
+    button(folderLabel(), () => { dialog.close(); void load("Reveal", folder.directory, "."); }, { glyph: "folder-open", className: "picker-item" }),
     button(tr("Rename workspace"), () => {
       const name = input("text", folder.name);
       name.required = true;
@@ -1049,6 +1051,14 @@ function workspaceActions(folder) {
     }, { glyph: "x", className: "picker-item destructive" }),
   );
   content.append(list);
+  const available = await load("PiAvailable");
+  if (!content.isConnected || !dialog.open) return;
+  if (available) {
+    list.prepend(button(tr("Coding engine"), () => chooseRuntime(folder), { glyph: "settings", className: "picker-item" }));
+  } else if (runtimeFor(folder.directory) === "pi") {
+    list.prepend(button(tr("Switch to OpenCode"), () => setWorkspaceRuntime(folder, "opencode"), { glyph: "settings", className: "picker-item" }));
+  }
+  content.dataset.enginesChecked = "true";
 }
 
 function sessionActions(directory, session) {
@@ -1139,7 +1149,7 @@ async function renderPanel() {
   rightTop.append(node("span", "spacer"));
   if (panel === "files" && directory) {
     const path = previewPath || filePath;
-    rightTop.append(iconButton(tr("Show in Finder"), "folder-open", () => load("Reveal", directory, path)));
+    rightTop.append(iconButton(folderLabel(), "folder-open", () => load("Reveal", directory, path)));
   }
   rightTop.append(iconButton(tr("Close panel"), "x", () => setPanel("")));
   rightBody.replaceChildren(node("p", "empty-panel", tr("Loading…")));
@@ -1419,7 +1429,8 @@ async function showSettings() {
     }).catch((error) => { providers.querySelector("p").textContent = errorLabel(error.message); });
   } else providers.append(node("p", "", tr("Add a workspace to see its providers.")));
   const keys = node("section", "settings-section");
-  keys.append(node("h3", "", tr("Keyboard shortcuts")), node("p", "", tr("⌘N New task · ⇧⌘F Search · ⌘, Settings · ⇧Enter New line")));
+  keys.append(node("h3", "", tr("Keyboard shortcuts")), node("p", "", tr(state.platform === "darwin" ? "⌘N New task · ⇧⌘F Search · ⌘, Settings · ⇧Enter New line" :
+    "Ctrl+N New task · Ctrl+Shift+F Search · Ctrl+, Settings · Shift+Enter New line")));
   wrap.append(languageSettings(), engine, providers, keys);
 }
 
@@ -1465,7 +1476,7 @@ async function checkVersion() {
 }
 
 document.addEventListener("keydown", (event) => {
-  if (!event.metaKey) return;
+  if (!(state.platform === "darwin" ? event.metaKey : event.ctrlKey)) return;
   if (event.key.toLowerCase() === "n" && !event.shiftKey) {
     event.preventDefault();
     if (dialog.open) dialog.close();
@@ -1489,7 +1500,10 @@ async function boot() {
     return;
   }
   window.mygo.on("agentUpdate", receipt);
-  state.language = setLanguage(await load("Language"));
+  const [language, platform] = await Promise.all([load("Language"), load("Platform")]);
+  state.platform = platform || "darwin";
+  document.documentElement.dataset.platform = state.platform;
+  state.language = setLanguage(language);
   renderShell();
   state.folders = await load("Workspaces") || [];
   const selected = state.folders.find((entry) => entry.directory === saved.get("lastWorkspace")) || state.folders[0];

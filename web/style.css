@@ -270,3 +270,6 @@ dialog::backdrop { background: #14151b38; }
 @container (max-width: 475px) {
   .composer .pill.variant { display: none; }
 }
+
+:root[data-platform="windows"] .sidebar-top { padding-left: 12px; }
+:root[data-platform="windows"] .sidebar.collapsed { width: 0; flex-basis: 0; border-right: 0; }

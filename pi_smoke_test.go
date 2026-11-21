@@ -1,3 +1,5 @@
+//go:build darwin || windows
+
 package main
 
 import (
@@ -14,7 +16,7 @@ import (
 	"mygo-work/internal/workspace"
 )
 
-func TestMacOSPiDesktop(t *testing.T) {
+func TestPiDesktop(t *testing.T) {
 	pi := os.Getenv("MYGO_WORK_TEST_PI")
 	openCode := os.Getenv("MYGO_WORK_TEST_OPENCODE")
 	if pi == "" || openCode == "" {
@@ -96,6 +98,9 @@ export default function (pi) {
 func nativePiJourney(stage string, await func(string, string) error, eval, click, send func(string) error) error {
 	switchEngine := func(name string) error {
 		if err := click("Workspace actions"); err != nil {
+			return err
+		}
+		if err := await("Pi detected in workspace menu", `document.querySelector("[data-engines-checked]")?.innerText.includes("Coding engine")`); err != nil {
 			return err
 		}
 		if err := click("Coding engine"); err != nil {

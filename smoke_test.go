@@ -1,3 +1,5 @@
+//go:build darwin || windows
+
 // These checks drive the production UI inside an actual MyGo WKWebView.
 package main
 
@@ -40,7 +42,7 @@ func TestMain(m *testing.M) {
 	}
 }
 
-func TestMacOSDesktop(t *testing.T) {
+func TestDesktop(t *testing.T) {
 	binary := os.Getenv("MYGO_WORK_TEST_OPENCODE")
 	if binary == "" {
 		t.Skip("set MYGO_WORK_TEST_OPENCODE to the OpenCode v2 executable")
@@ -94,6 +96,7 @@ func TestMacOSDesktop(t *testing.T) {
 			"MYGO_WORK_SMOKE_STAGE="+stage,
 			"MYGO_WORK_DATA_DIR="+profile,
 			"MYGO_WORK_OPENCODE="+binary,
+			"MYGO_WORK_PI="+filepath.Join(root, "pi-unavailable"),
 			"MYGO_WORK_SMOKE_PROJECT="+project,
 			"MYGO_WORK_SMOKE_MCP="+model.URL+"/mcp",
 			"XDG_CONFIG_HOME="+config,
@@ -161,7 +164,7 @@ func nativeJourney(stage string) error {
 		return nativePiJourney(stage, await, eval, click, send)
 	}
 	if stage == "run" {
-		if err := await("fresh macOS profile defaults to Simplified Chinese", `document.documentElement.lang === "zh-CN" && document.querySelector(".hero")?.innerText.includes("你想完成什么任务？") && document.querySelector(".footer")?.innerText.includes("就绪")`); err != nil {
+		if err := await("fresh desktop profile defaults to Simplified Chinese", `document.documentElement.lang === "zh-CN" && document.querySelector(".hero")?.innerText.includes("你想完成什么任务？") && document.querySelector(".footer")?.innerText.includes("就绪")`); err != nil {
 			return err
 		}
 		if mygo.App.Locale() != "zh-Hans" {
@@ -183,8 +186,19 @@ func nativeJourney(stage string) error {
 			return err
 		}
 	}
-	if err := await("native WKWebView loaded in English", `document.documentElement.lang === "en" && document.querySelector(".folder-row") && document.querySelector(".footer").innerText.includes("Ready for new tasks")`); err != nil {
+	if err := await("native webview loaded in English", `document.documentElement.lang === "en" && document.querySelector(".folder-row") && document.querySelector(".footer").innerText.includes("Ready for new tasks")`); err != nil {
 		return err
+	}
+	if stage == "run" {
+		if err := click("Workspace actions"); err != nil {
+			return err
+		}
+		if err := await("engine selector hidden without Pi", `document.querySelector("[data-engines-checked]") && !document.querySelector("[data-engines-checked]").innerText.includes("Coding engine")`); err != nil {
+			return err
+		}
+		if err := click("Close"); err != nil {
+			return err
+		}
 	}
 	if stage == "restore" {
 		if err := click("Skills and connections"); err != nil {

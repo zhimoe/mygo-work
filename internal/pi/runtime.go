@@ -9,9 +9,9 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"net/url"
 	"os"
 	"path/filepath"
+	"regexp"
 	"slices"
 	"strings"
 	"sync"
@@ -19,9 +19,12 @@ import (
 	"uuid"
 
 	"mygo-work/internal/agent"
+	"mygo-work/internal/localfile"
 )
 
 var _ agent.Runtime = (*Runtime)(nil)
+
+var versionPattern = regexp.MustCompile(`(?m)^v?[0-9]+\.[0-9]+\.[0-9]+(?:[-+][0-9A-Za-z.+-]+)?$`)
 
 type Runtime struct {
 	dir    string
@@ -96,17 +99,21 @@ func (r *Runtime) Close() {
 }
 
 func (r *Runtime) Version(ctx context.Context) (string, error) {
-	binary, err := executable()
+	launcher, err := executable()
 	if err != nil {
 		return "", err
 	}
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
-	out, err := command(ctx, binary, "--version").Output()
+	out, err := launcher.command(ctx, "--version").Output()
 	if err != nil {
 		return "", fmt.Errorf("start Pi: %w", err)
 	}
-	return strings.TrimSpace(string(out)), nil
+	version := versionPattern.FindString(strings.ReplaceAll(string(out), "\r\n", "\n"))
+	if version == "" {
+		return "", errors.New("Pi did not report a version")
+	}
+	return version, nil
 }
 
 func (r *Runtime) Watch(ctx context.Context, emit func(agent.Event)) error {
@@ -374,11 +381,11 @@ func promptText(prompt agent.Prompt) (string, error) {
 	if len(prompt.Files) > 0 {
 		text.WriteString("\n\nSelected local files:\n")
 		for _, file := range prompt.Files {
-			u, err := url.Parse(file.URI)
-			if err != nil || u.Scheme != "file" || u.Host != "" || !filepath.IsAbs(u.Path) {
-				return "", errors.New("Pi attachments must be local files")
+			path, err := localfile.Path(file.URI)
+			if err != nil {
+				return "", err
 			}
-			fmt.Fprintf(&text, "- %q\n", u.Path)
+			fmt.Fprintf(&text, "- %q\n", path)
 		}
 	}
 	return text.String(), nil
@@ -423,7 +430,7 @@ func (r *Runtime) path(entry sessionRecord) string {
 
 func (r *Runtime) sessionFile(entry sessionRecord, remote remoteState) (string, error) {
 	workspacePath := r.storage(entry.Session.Directory)
-	if remote.ID != entry.Session.ID || remote.File == "" || filepath.Dir(remote.File) != workspacePath {
+	if remote.ID != entry.Session.ID || remote.File == "" || filepath.Clean(filepath.Dir(remote.File)) != filepath.Clean(workspacePath) {
 		return "", errors.New("Pi opened an unexpected session")
 	}
 	return filepath.Base(remote.File), nil

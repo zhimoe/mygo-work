@@ -8,39 +8,13 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"os"
 	"os/exec"
-	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
-	"syscall"
 	"time"
 )
-
-func executable() (string, error) {
-	if override := os.Getenv("MYGO_WORK_PI"); override != "" {
-		return exec.LookPath(override)
-	}
-	home, _ := os.UserHomeDir()
-	for _, candidate := range []string{"pi", filepath.Join(home, ".local", "bin", "pi"), filepath.Join(home, ".pi", "agent", "bin", "pi"), "/opt/homebrew/bin/pi", "/usr/local/bin/pi"} {
-		if binary, err := exec.LookPath(candidate); err == nil {
-			return binary, nil
-		}
-	}
-	return "", errors.New("Pi executable unavailable. Install Pi Coding Agent or set MYGO_WORK_PI")
-}
-
-func command(ctx context.Context, binary string, args ...string) *exec.Cmd {
-	cmd := exec.CommandContext(ctx, binary, args...)
-	cmd.Env = append(os.Environ(), "PATH="+os.Getenv("PATH")+":/opt/homebrew/bin:/usr/local/bin")
-	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
-	cmd.Cancel = func() error {
-		return syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL)
-	}
-	return cmd
-}
 
 type record struct {
 	ID          string          `json:"id"`
@@ -84,11 +58,11 @@ type connection struct {
 }
 
 func startRPC(ctx context.Context, directory string, stderr io.Writer, notify func(record), args ...string) (*connection, error) {
-	binary, err := executable()
+	launcher, err := executable()
 	if err != nil {
 		return nil, err
 	}
-	cmd := command(ctx, binary, append([]string{"--mode", "rpc"}, args...)...)
+	cmd := launcher.command(ctx, append([]string{"--mode", "rpc"}, args...)...)
 	cmd.Dir = directory
 	cmd.Stderr = stderr
 	input, err := cmd.StdinPipe()

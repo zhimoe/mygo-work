@@ -1,3 +1,4 @@
 .DS_Store
 /dist/
 /resources/darwin-*/opencode
+/resources/windows-arm64/opencode.exe

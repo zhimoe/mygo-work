@@ -7,6 +7,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"runtime"
 	"time"
 
 	"github.com/egoist/mygo"
@@ -31,11 +32,11 @@ var agentEvent = mygo.NewEvent[agent.Event]("agentUpdate")
 func main() {
 	dir := os.Getenv("MYGO_WORK_DATA_DIR")
 	if dir == "" {
-		home, err := os.UserHomeDir()
+		config, err := os.UserConfigDir()
 		if err != nil {
 			log.Fatal(err)
 		}
-		dir = filepath.Join(home, "Library", "Application Support", "MyGo Work Pi")
+		dir = filepath.Join(config, "MyGo Work")
 	}
 	dir, err := filepath.Abs(dir)
 	if err != nil {
@@ -82,13 +83,16 @@ func main() {
 	mygo.Bind(desktop)
 	mygo.App.OnQuit(closeRuntimes)
 	mygo.App.WhenReady(func() {
-		win := mygo.NewWindow(mygo.WindowOptions{
+		options := mygo.WindowOptions{
 			Title: "MyGo Work", URL: "/",
 			Width: 1180, Height: 800, MinWidth: 780, MinHeight: 560,
-			TitleBarStyle:        mygo.TitleBarHidden,
-			TrafficLightPosition: &mygo.Point{X: 15, Y: 16},
-			BackgroundColor:      "#fafafa",
-		})
+			BackgroundColor: "#fafafa",
+		}
+		if runtime.GOOS == "darwin" {
+			options.TitleBarStyle = mygo.TitleBarHidden
+			options.TrafficLightPosition = &mygo.Point{X: 15, Y: 16}
+		}
+		win := mygo.NewWindow(options)
 		win.OnClosed(func() { mygo.App.Quit() })
 		mygo.App.OnSecondInstance(func([]string, string) { win.Focus() })
 		for id, runtime := range desktop.runtimes {

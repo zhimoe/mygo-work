@@ -2,7 +2,7 @@
 set -eu
 
 version=2.3.2
-destination=${1:-"${MYGO_WORK_DATA_DIR:-"$HOME/Library/Application Support/MyGo Work Pi"}/bin/opencode"}
+destination=${1:-"${MYGO_WORK_DATA_DIR:-"$HOME/Library/Application Support/MyGo Work"}/bin/opencode"}
 architecture=${2:-$(uname -m)}
 case "$architecture" in
   arm64)

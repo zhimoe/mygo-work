@@ -59,7 +59,7 @@ func (s *Store) Files(directory, path string) ([]Entry, error) {
 		if strings.HasPrefix(item.Name(), ".") || (!item.IsDir() && !item.Type().IsRegular()) {
 			continue
 		}
-		out = append(out, Entry{Name: item.Name(), Path: filepath.Join(path, item.Name()), Directory: item.IsDir()})
+		out = append(out, Entry{Name: item.Name(), Path: filepath.ToSlash(filepath.Join(path, item.Name())), Directory: item.IsDir()})
 	}
 	slices.SortFunc(out, func(a, b Entry) int {
 		if a.Directory != b.Directory {
