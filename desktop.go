@@ -7,11 +7,13 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 
 	"github.com/egoist/mygo"
 
 	"mygo-work/internal/agent"
+	"mygo-work/internal/localfile"
 	"mygo-work/internal/opencode"
 	"mygo-work/internal/workspace"
 )
@@ -73,7 +75,7 @@ func (d *Desktop) PickAttachments(ctx context.Context, dir string) ([]agent.Atta
 			return nil, errors.New("only regular files can be attached")
 		}
 		items = append(items, agent.Attachment{
-			Name: filepath.Base(path), URI: (&url.URL{Scheme: "file", Path: path}).String(),
+			Name: filepath.Base(path), URI: localfile.URL(path),
 		})
 	}
 	return items, nil
@@ -108,7 +110,38 @@ func (d *Desktop) OpenLink(address string) error {
 	return mygo.Shell.OpenExternal(u.String())
 }
 
-func (d *Desktop) Version(ctx context.Context) (string, error) { return d.code.Version(ctx) }
+func (d *Desktop) Version(ctx context.Context, directory string) (string, error) {
+	if directory == "" {
+		return d.runtimes[openCodeID].Version(ctx)
+	}
+	runtime, err := d.runtime(directory)
+	if err != nil {
+		return "", err
+	}
+	return runtime.Version(ctx)
+}
+
+func (d *Desktop) Platform() string { return runtime.GOOS }
+
+func (d *Desktop) PiAvailable(ctx context.Context) bool {
+	runtime := d.runtimes[piID]
+	if runtime == nil {
+		return false
+	}
+	_, err := runtime.Version(ctx)
+	return err == nil
+}
+
+func (d *Desktop) SetWorkspaceRuntime(ctx context.Context, directory, id string) error {
+	runtime := d.runtimes[id]
+	if runtime == nil {
+		return errors.New("unknown coding engine")
+	}
+	if _, err := runtime.Version(ctx); err != nil {
+		return err
+	}
+	return d.folders.SetRuntime(directory, id)
+}
 
 func (d *Desktop) Sessions(ctx context.Context, dir string, archived bool, search string) ([]agent.Session, error) {
 	r, err := d.runtime(dir)

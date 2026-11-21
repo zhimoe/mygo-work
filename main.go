@@ -7,6 +7,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"runtime"
 	"time"
 
 	"github.com/egoist/mygo"
@@ -14,24 +15,28 @@ import (
 
 	"mygo-work/internal/agent"
 	"mygo-work/internal/opencode"
+	"mygo-work/internal/pi"
 	"mygo-work/internal/workspace"
 )
 
 //go:embed web/*
 var assets embed.FS
 
-const openCodeID = "opencode"
+const (
+	openCodeID = "opencode"
+	piID       = "pi"
+)
 
 var agentEvent = mygo.NewEvent[agent.Event]("agentUpdate")
 
 func main() {
 	dir := os.Getenv("MYGO_WORK_DATA_DIR")
 	if dir == "" {
-		home, err := os.UserHomeDir()
+		config, err := os.UserConfigDir()
 		if err != nil {
 			log.Fatal(err)
 		}
-		dir = filepath.Join(home, "Library", "Application Support", "MyGo Work")
+		dir = filepath.Join(config, "MyGo Work")
 	}
 	dir, err := filepath.Abs(dir)
 	if err != nil {
@@ -56,24 +61,38 @@ func main() {
 		log.Fatal(err)
 	}
 	process := opencode.NewProcess(dir)
+	runtimes := map[string]agent.Runtime{openCodeID: process}
+	var closePi func()
+	if piRuntime, err := pi.Open(dir); err == nil {
+		runtimes[piID] = piRuntime
+		closePi = piRuntime.Close
+	} else {
+		log.Printf("Pi runtime: %v", err)
+	}
 	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-	defer process.Close()
-	desktop := &Desktop{folders: folders, prefs: prefs, code: process, runtimes: map[string]agent.Runtime{openCodeID: process}}
-	mygo.SetFrontend(frontend)
-	mygo.Bind(desktop)
-	mygo.App.OnQuit(func() {
+	closeRuntimes := func() {
 		cancel()
 		process.Close()
-	})
+		if closePi != nil {
+			closePi()
+		}
+	}
+	defer closeRuntimes()
+	desktop := &Desktop{folders: folders, prefs: prefs, code: process, runtimes: runtimes}
+	mygo.SetFrontend(frontend)
+	mygo.Bind(desktop)
+	mygo.App.OnQuit(closeRuntimes)
 	mygo.App.WhenReady(func() {
-		win := mygo.NewWindow(mygo.WindowOptions{
+		options := mygo.WindowOptions{
 			Title: "MyGo Work", URL: "/",
 			Width: 1180, Height: 800, MinWidth: 780, MinHeight: 560,
-			TitleBarStyle:        mygo.TitleBarHidden,
-			TrafficLightPosition: &mygo.Point{X: 15, Y: 16},
-			BackgroundColor:      "#fafafa",
-		})
+			BackgroundColor: "#fafafa",
+		}
+		if runtime.GOOS == "darwin" {
+			options.TitleBarStyle = mygo.TitleBarHidden
+			options.TrafficLightPosition = &mygo.Point{X: 15, Y: 16}
+		}
+		win := mygo.NewWindow(options)
 		win.OnClosed(func() { mygo.App.Quit() })
 		mygo.App.OnSecondInstance(func([]string, string) { win.Focus() })
 		for id, runtime := range desktop.runtimes {

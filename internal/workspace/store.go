@@ -98,6 +98,18 @@ func (s *Store) Rename(path, name string) error {
 	return s.save(next)
 }
 
+func (s *Store) SetRuntime(path, runtime string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	next := slices.Clone(s.folders)
+	index := slices.IndexFunc(next, func(folder Folder) bool { return folder.Directory == path })
+	if index == -1 {
+		return errors.New("workspace is not registered")
+	}
+	next[index].Runtime = runtime
+	return s.save(next)
+}
+
 func (s *Store) Remove(path string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()

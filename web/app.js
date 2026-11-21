@@ -8,7 +8,7 @@ const dialog = document.getElementById("dialog");
 const state = {
   folders: [], sessions: new Map(), expanded: new Set(), options: new Map(), threads: new Map(), drafts: new Map(),
   directory: "", session: "", panel: "", sidebar: saved.get("sidebar") !== "hidden",
-  language: "zh-CN", version: "", engineError: "", connected: false, active: new Set(), submitting: new Set(),
+  platform: "darwin", language: "zh-CN", version: "", engineError: "", connected: false, active: new Set(), submitting: new Set(),
   filePath: ".", previewPath: "", editing: false,
 };
 
@@ -54,8 +54,14 @@ function report(error) {
   toastTimer = setTimeout(() => { toast.hidden = true; }, 5500);
 }
 
+const runtimeFor = (directory = state.directory) => state.folders.find((folder) => folder.directory === directory)?.runtime || "opencode";
+const isPi = () => runtimeFor() === "pi";
+const runtimeName = () => isPi() ? "Pi" : "OpenCode";
+const folderLabel = () => tr(state.platform === "win32" || state.platform === "windows" ? "Show in File Explorer" : "Show in Finder");
+const lastSessionKey = (directory) => "lastSession:" + directory + (runtimeFor(directory) === "pi" ? ":pi" : "");
+
 function activeKey(directory = state.directory, id = state.session) {
-  return JSON.stringify([directory, id]);
+  return JSON.stringify(runtimeFor(directory) === "pi" ? ["pi", directory, id] : [directory, id]);
 }
 
 function threadFor(directory = state.directory, id = state.session) {
@@ -87,13 +93,22 @@ function activate(directory, id = "") {
     state.previewPath = "";
     state.editing = false;
   }
+  const changedRuntime = runtimeFor(directory) !== runtimeFor();
   state.directory = directory;
   state.session = id;
+  if (changedRuntime) {
+    state.version = "";
+    state.connected = false;
+    state.engineError = "";
+    state.active.clear();
+  }
+  if (isPi() && state.panel !== "files") state.panel = "";
   if (directory) state.expanded.add(directory);
   saved.set("lastWorkspace", directory);
-  saved.set("lastSession:" + directory, id);
+  saved.set(lastSessionKey(directory), id);
   renderedKey = "";
   renderShell();
+  if (changedRuntime || !state.version) void checkVersion();
   if (directory) {
     void loadOptions(directory);
     void fetchSessions(directory);
@@ -157,7 +172,7 @@ function renderSidebar() {
   search.disabled = state.folders.length === 0;
   search.setAttribute("aria-label", tr("Search sessions"));
 
-  search.append(node("span", "key", "⇧⌘F"));
+  search.append(node("span", "key", state.platform === "darwin" ? "⇧⌘F" : "Ctrl+Shift+F"));
   sideBody.append(search);
   for (const folder of state.folders) {
     const group = node("div", "group");
@@ -176,7 +191,9 @@ function renderSidebar() {
     }, { className: "side-row folder-row" });
     row.firstElementChild.classList.add("truncate");
     row.prepend(node("span", "orb"));
-    row.append(node("span", "spacer"), icon(expanded ? "chevron-down" : "chevron-right"));
+    row.append(node("span", "spacer"));
+    if (folder.runtime === "pi") row.append(node("small", "", "Pi"));
+    row.append(icon(expanded ? "chevron-down" : "chevron-right"));
     row.setAttribute("aria-expanded", String(expanded));
     const more = iconButton(tr("Workspace actions"), "ellipsis", () => workspaceActions(folder));
     more.classList.add("row-more");
@@ -228,12 +245,12 @@ function renderHeader() {
 
 function renderFooter() {
   const running = state.active.has(state.session) || state.submitting.has(activeKey());
-  const label = state.engineError ? tr("OpenCode unavailable") : !state.version ? tr("Starting OpenCode…") :
+  const label = state.engineError ? tr("{engine} unavailable", { engine: runtimeName() }) : !state.version ? tr("Starting {engine}…", { engine: runtimeName() }) :
     !state.connected ? tr("Reconnecting…") : running ? tr("Task in progress") : tr("Ready for new tasks");
   const status = button(label, showSettings);
   status.prepend(node("span", "dot " + (state.engineError || !state.connected ? "" : running ? "running" : "ready")));
   footer.replaceChildren(status, node("span", "spacer"),
-    button(tr("Docs"), () => load("OpenLink", "https://opencode.ai/docs/"), { glyph: "book-open" }),
+    button(tr("Docs"), () => load("OpenLink", isPi() ? "https://docs.pi.dev/latest/" : "https://opencode.ai/docs/"), { glyph: "book-open" }),
     iconButton(tr("Settings"), "settings", showSettings));
 }
 
@@ -314,7 +331,7 @@ const selection = (draft = draftFor()) => {
   const options = state.options.get(state.directory);
   const session = state.session && currentSession();
   const model = draft.model || (session?.model?.id ? session.model : options?.defaultModel) || {};
-  const mode = draft.mode || session?.mode || (options?.modes || []).find((item) => item.id === "build")?.id || "";
+  const mode = draft.mode || session?.mode || (options?.modes || []).find((item) => item.id === (isPi() ? "pi" : "build"))?.id || "";
   return { model, mode, options };
 };
 
@@ -351,8 +368,15 @@ function renderComposerMeta() {
   const modelButton = button(modelLabel, chooseModel, { className: "pill model" });
   modeButton.append(icon("chevron-down"));
   modelButton.append(icon("chevron-down"));
-  controls.replaceChildren(iconButton(tr("Attach files"), "paperclip", pickAttachments),
-    iconButton(tr("Skills and connections"), "plug", () => setPanel(state.panel === "tools" ? "" : "tools")), modeButton, modelButton);
+  controls.replaceChildren(iconButton(tr("Attach files"), "paperclip", pickAttachments));
+  if (isPi()) {
+    const engine = node("span", "pill engine-label", "Pi");
+    engine.title = tr("Pi Coding Agent");
+    controls.append(engine);
+  } else {
+    controls.append(iconButton(tr("Skills and connections"), "plug", () => setPanel(state.panel === "tools" ? "" : "tools")), modeButton);
+  }
+  controls.append(modelButton);
   if (modelInfo?.variants?.length) {
     const variant = button(tr(model.variant || "Default"), chooseVariant, { className: "pill variant" });
     variant.append(icon("chevron-down"));
@@ -380,6 +404,7 @@ async function send() {
   let id = state.session;
   const originalId = id;
   const originalKey = activeKey(directory, id);
+  let submitKey = originalKey;
   const draft = draftFor(directory, id);
   if (!directory || state.active.has(id) || state.submitting.has(originalKey) ||
       (!draft.text.trim() && !draft.files.length && !draft.skills.length)) return;
@@ -393,6 +418,11 @@ async function send() {
       id = session.id;
       threadFor(directory, id).session = session;
       state.sessions.set(directory, [session, ...(state.sessions.get(directory) || [])]);
+      if (runtimeFor(directory) === "pi") {
+        submitKey = activeKey(directory, id);
+        state.submitting.add(submitKey);
+        if (state.directory === directory && !state.session) openSession(directory, session);
+      }
     }
     const prompt = originalId ? payload : { ...payload, model: {}, mode: "" };
     await call("Prompt", directory, id, prompt);
@@ -418,7 +448,7 @@ async function send() {
   } catch (error) {
     if (!originalId && id) {
       threadFor(directory, id).session = (state.sessions.get(directory) || []).find((session) => session.id === id);
-      if (state.directory === directory && !state.session) {
+      if (state.directory === directory && (!state.session || state.session === id)) {
         const retry = draftFor(directory, id);
         Object.assign(retry, draft);
         saved.set("draft:" + activeKey(directory, id), retry.text);
@@ -428,7 +458,9 @@ async function send() {
     report(error);
   } finally {
     state.submitting.delete(originalKey);
+    state.submitting.delete(submitKey);
     renderComposerMeta();
+    renderFooter();
   }
 }
 
@@ -568,9 +600,10 @@ function displayMessage(message, key) {
       const file = part.input?.filePath || part.input?.path;
       const writeTool = /edit|patch|write/.test(part.name);
       if (writeTool && part.status === "completed" && typeof file === "string") {
-        const directory = state.directory;
-        const relative = file.startsWith(directory + "/") ? file.slice(directory.length + 1) : file;
-        if (!relative.startsWith("/") && !relative.split("/").includes("..")) {
+        const directory = state.directory.replaceAll("\\", "/");
+        const path = file.replaceAll("\\", "/");
+        const relative = path.startsWith(directory + "/") ? path.slice(directory.length + 1) : path;
+        if (!relative.startsWith("/") && !/^[a-z]:/i.test(relative) && !relative.split("/").includes("..")) {
           element.append(button(relative, () => previewFile(relative), { glyph: "file-text", className: "secondary" }));
         }
       }
@@ -630,7 +663,7 @@ function renderThread(force = false) {
 }
 
 function receipt(event) {
-  const runtime = currentFolder()?.runtime || "opencode";
+  const runtime = runtimeFor();
   if (event.runtime && event.runtime !== runtime) return;
   if (event.kind === "catalog") {
     if (state.panel === "tools" && (!event.directory || event.directory === state.directory)) void renderPanel();
@@ -711,7 +744,10 @@ let fieldsSerial = 0;
 function questionInput(spec) {
   const values = spec.options || [];
   let element;
-  if (spec.type === "boolean") {
+  if (spec.type === "editor") {
+    element = node("textarea");
+    element.value = spec.default ?? "";
+  } else if (spec.type === "boolean") {
     element = node("select");
     for (const [value, label] of [["", tr("Choose…")], ["true", tr("Yes")], ["false", tr("No")]]) element.add(new Option(label, value));
     element.value = spec.default === undefined ? "" : String(spec.default);
@@ -747,7 +783,7 @@ function renderQuestion(directory, session, question) {
   for (const spec of question.fields || []) {
     if (spec.hidden || spec.type === "external") continue;
     const { element, list } = questionInput(spec);
-    const wrapper = field(spec.title || spec.key, element);
+    const wrapper = field(tr(spec.title || spec.key), element);
     if (list) wrapper.append(list);
     form.append(wrapper);
     fields.set(spec.key, { element, spec, wrapper });
@@ -900,13 +936,18 @@ async function chooseModel() {
   }));
   picker(tr("Select model"), values, (item) => { draftFor().model = item.model; renderComposerMeta(); }, keyFor(model), tr("Search models…"));
   const wrap = dialog.querySelector(".dialog-body");
-  wrap?.append(button(tr("Connect a provider"), showProviders, { glyph: "plus", className: "pill" }));
+  if (isPi()) {
+    if (!values.length) wrap?.append(node("p", "", tr("Configure a model in Pi, then reopen this workspace.")));
+  } else {
+    wrap?.append(button(tr("Connect a provider"), showProviders, { glyph: "plus", className: "pill" }));
+  }
 }
 
 function chooseVariant() {
   const { model, options } = selection();
   const found = options.models.find((item) => item.id === model.id && item.provider === model.provider);
-  const variants = [{ key: "", label: tr("Default") }, ...(found?.variants || []).map((id) => ({ key: id, label: tr(id) }))];
+  const variants = (found?.variants || []).map((id) => ({ key: id, label: tr(id) }));
+  if (!isPi()) variants.unshift({ key: "", label: tr("Default") });
   picker(tr("Model effort"), variants, (item) => {
     draftFor().model = { ...model, variant: item.key };
     renderComposerMeta();
@@ -964,12 +1005,31 @@ function showSearch() {
   void update();
 }
 
-function workspaceActions(folder) {
+async function setWorkspaceRuntime(folder, key) {
+  if (key === runtimeFor(folder.directory)) return;
+  try {
+    await call("SetWorkspaceRuntime", folder.directory, key);
+    saved.set("lastWorkspace", folder.directory);
+    location.reload();
+  } catch (error) {
+    report(error);
+  }
+}
+
+function chooseRuntime(folder) {
+  const engines = [
+    { key: "opencode", label: "OpenCode v2" },
+    { key: "pi", label: "Pi Coding Agent" },
+  ];
+  picker(tr("Coding engine"), engines, ({ key }) => setWorkspaceRuntime(folder, key), runtimeFor(folder.directory));
+}
+
+async function workspaceActions(folder) {
   const content = showDialog(folder.name);
   content.append(node("p", "", folder.directory));
   const list = node("div", "picker-list");
   list.append(
-    button(tr("Show in Finder"), () => { dialog.close(); void load("Reveal", folder.directory, "."); }, { glyph: "folder-open", className: "picker-item" }),
+    button(folderLabel(), () => { dialog.close(); void load("Reveal", folder.directory, "."); }, { glyph: "folder-open", className: "picker-item" }),
     button(tr("Rename workspace"), () => {
       const name = input("text", folder.name);
       name.required = true;
@@ -991,6 +1051,14 @@ function workspaceActions(folder) {
     }, { glyph: "x", className: "picker-item destructive" }),
   );
   content.append(list);
+  const available = await load("PiAvailable");
+  if (!content.isConnected || !dialog.open) return;
+  if (available) {
+    list.prepend(button(tr("Coding engine"), () => chooseRuntime(folder), { glyph: "settings", className: "picker-item" }));
+  } else if (runtimeFor(folder.directory) === "pi") {
+    list.prepend(button(tr("Switch to OpenCode"), () => setWorkspaceRuntime(folder, "opencode"), { glyph: "settings", className: "picker-item" }));
+  }
+  content.dataset.enginesChecked = "true";
 }
 
 function sessionActions(directory, session) {
@@ -1044,6 +1112,7 @@ function renderRail() {
   rail.setAttribute("aria-label", tr("Side panels"));
   rail.replaceChildren();
   for (const [id, label, glyph] of panels()) {
+    if (isPi() && id !== "files") continue;
     const entry = button(label, () => setPanel(state.panel === id ? "" : id), { glyph, onlyIcon: true, className: "rail-button" });
     entry.classList.toggle("selected", state.panel === id);
     entry.setAttribute("aria-pressed", String(state.panel === id));
@@ -1080,7 +1149,7 @@ async function renderPanel() {
   rightTop.append(node("span", "spacer"));
   if (panel === "files" && directory) {
     const path = previewPath || filePath;
-    rightTop.append(iconButton(tr("Show in Finder"), "folder-open", () => load("Reveal", directory, path)));
+    rightTop.append(iconButton(folderLabel(), "folder-open", () => load("Reveal", directory, path)));
   }
   rightTop.append(iconButton(tr("Close panel"), "x", () => setPanel("")));
   rightBody.replaceChildren(node("p", "empty-panel", tr("Loading…")));
@@ -1337,15 +1406,20 @@ function languageSettings() {
 async function showSettings() {
   const wrap = showDialog(tr("Settings"));
   const engine = node("section", "settings-section");
-  const details = node("p", "", state.engineError ? errorLabel(state.engineError) : (state.version ? tr("OpenCode {version} · Local engine", { version: state.version }) : tr("Connecting to OpenCode…")));
+  const runtimeDetails = () => state.engineError ? errorLabel(state.engineError) :
+    state.version ? tr("{engine} {version} · Local engine", { engine: runtimeName(), version: state.version }) :
+    tr("Connecting to {engine}…", { engine: runtimeName() });
+  const details = node("p", "", runtimeDetails());
   engine.append(node("h3", "", tr("Runtime")), details,
     button(tr("Check connection"), async () => {
       await checkVersion();
-      details.textContent = state.engineError ? errorLabel(state.engineError) : tr("OpenCode {version} · Local engine", { version: state.version });
+      details.textContent = runtimeDetails();
     }, { glyph: "rotate-ccw", className: "secondary" }));
   const providers = node("section", "settings-section");
   providers.append(node("h3", "", tr("Model providers")));
-  if (state.directory) {
+  if (isPi()) {
+    providers.append(node("p", "", tr("Pi uses the models, credentials, and extensions configured in Pi.")));
+  } else if (state.directory) {
     providers.append(node("p", "", tr("Loading providers…")),
       button(tr("Connect a provider"), showProviders, { glyph: "plus", className: "secondary" }));
     const directory = state.directory;
@@ -1355,7 +1429,8 @@ async function showSettings() {
     }).catch((error) => { providers.querySelector("p").textContent = errorLabel(error.message); });
   } else providers.append(node("p", "", tr("Add a workspace to see its providers.")));
   const keys = node("section", "settings-section");
-  keys.append(node("h3", "", tr("Keyboard shortcuts")), node("p", "", tr("⌘N New task · ⇧⌘F Search · ⌘, Settings · ⇧Enter New line")));
+  keys.append(node("h3", "", tr("Keyboard shortcuts")), node("p", "", tr(state.platform === "darwin" ? "⌘N New task · ⇧⌘F Search · ⌘, Settings · ⇧Enter New line" :
+    "Ctrl+N New task · Ctrl+Shift+F Search · Ctrl+, Settings · Shift+Enter New line")));
   wrap.append(languageSettings(), engine, providers, keys);
 }
 
@@ -1383,19 +1458,25 @@ async function showProviders() {
   }
 }
 
+let requestedVersion = 0;
 async function checkVersion() {
+  const request = ++requestedVersion;
+  const runtime = runtimeFor();
   try {
-    state.version = await call("Version");
+    const version = await call("Version", state.directory);
+    if (request !== requestedVersion || runtime !== runtimeFor()) return;
+    state.version = version;
     state.engineError = "";
     state.connected = true;
   } catch (error) {
+    if (request !== requestedVersion || runtime !== runtimeFor()) return;
     state.engineError = error?.message || String(error);
   }
   renderFooter();
 }
 
 document.addEventListener("keydown", (event) => {
-  if (!event.metaKey) return;
+  if (!(state.platform === "darwin" ? event.metaKey : event.ctrlKey)) return;
   if (event.key.toLowerCase() === "n" && !event.shiftKey) {
     event.preventDefault();
     if (dialog.open) dialog.close();
@@ -1419,13 +1500,18 @@ async function boot() {
     return;
   }
   window.mygo.on("agentUpdate", receipt);
-  state.language = setLanguage(await load("Language"));
+  const [language, platform] = await Promise.all([load("Language"), load("Platform")]);
+  state.platform = platform || "darwin";
+  document.documentElement.dataset.platform = state.platform;
+  state.language = setLanguage(language);
   renderShell();
-  void checkVersion();
   state.folders = await load("Workspaces") || [];
   const selected = state.folders.find((entry) => entry.directory === saved.get("lastWorkspace")) || state.folders[0];
-  if (selected) activate(selected.directory, saved.get("lastSession:" + selected.directory));
-  else renderSidebar();
+  if (selected) activate(selected.directory, saved.get(lastSessionKey(selected.directory)));
+  else {
+    renderSidebar();
+    void checkVersion();
+  }
   setInterval(() => {
     const { directory, session } = state;
     if (!directory || state.engineError) return;

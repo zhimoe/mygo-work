@@ -15,10 +15,12 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"strings"
 	"sync"
-	"syscall"
 	"time"
+
+	"mygo-work/internal/process"
 )
 
 const TestedVersion = "2.3.2"
@@ -95,12 +97,17 @@ func (p *Process) client(ctx context.Context) (*Client, error) {
 
 func binary(ctx context.Context, dir string) (string, error) {
 	bin := os.Getenv("MYGO_WORK_OPENCODE")
-	candidates := []string{bin, filepath.Join(dir, "bin", "opencode")}
+	name := "opencode"
+	if runtime.GOOS == "windows" {
+		name += ".exe"
+	}
+	candidates := []string{bin, filepath.Join(dir, "bin", name)}
 	if exe, err := os.Executable(); err == nil {
-		candidates = append(candidates, filepath.Join(filepath.Dir(exe), "..", "Resources", "opencode"))
+		folder := filepath.Dir(exe)
+		candidates = append(candidates, filepath.Join(folder, name), filepath.Join(folder, "..", "Resources", "opencode"))
 	}
 	if home, err := os.UserHomeDir(); err == nil {
-		candidates = append(candidates, filepath.Join(home, ".opencode", "bin", "opencode"))
+		candidates = append(candidates, filepath.Join(home, ".opencode", "bin", name))
 	}
 	candidates = append(candidates, "opencode2", "opencode", "/opt/homebrew/bin/opencode", "/usr/local/bin/opencode")
 	if bin != "" {
@@ -114,7 +121,7 @@ func binary(ctx context.Context, dir string) (string, error) {
 		if err != nil {
 			continue
 		}
-		output, err := exec.CommandContext(ctx, path, "--version").Output()
+		output, err := process.Command(ctx, path, "--version").Output()
 		if err == nil && v2Version.Match(bytes.TrimSpace(output)) {
 			return filepath.Abs(path)
 		}
@@ -140,17 +147,14 @@ func (p *Process) start(ctx context.Context, bin string) (*child, error) {
 	rand.Read(secret[:])
 	server := &child{pass: hex.EncodeToString(secret[:]), done: make(chan struct{})}
 	env["OPENCODE_PASSWORD"] = server.pass
-	cmd := exec.CommandContext(p.ctx, bin, "serve", "--hostname", "127.0.0.1", "--port", "0")
+	cmd := process.Command(p.ctx, bin, "serve", "--hostname", "127.0.0.1", "--port", "0")
 	server.cmd = cmd
 	cmd.Dir = root
 	cmd.Env = append(cmd.Environ(), "OPENCODE_SERVER_PASSWORD=")
 	for key, value := range env {
 		cmd.Env = append(cmd.Env, key+"="+value)
 	}
-	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
-	cmd.Cancel = func() error {
-		return syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL)
-	}
+
 	cmd.Stderr = logFile
 	output, err := cmd.StdoutPipe()
 	if err != nil {
