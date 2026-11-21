@@ -1,47 +1,82 @@
 # MyGo Work
 
-MyGo Work 是一个参考 [OpenWork MIT 桌面版](https://github.com/different-ai/openwork/tree/v0.18.68)的本地 Agent 工作台。界面运行在 MyGo 的 macOS WKWebView 中，Go 宿主管理 OpenCode v2 子进程和本地工作区。
+MyGo Work 是一个面向本地文件和项目的 macOS Agent 工作台。它使用 MyGo 的 WKWebView 作为桌面界面，由 Go 管理 OpenCode v2 进程、工作区和模型交互。界面参考 [OpenWork MIT 桌面版](https://github.com/different-ai/openwork/tree/v0.18.68)。
 
-- 侧栏管理本地文件夹和任务，支持搜索、重命名、归档、恢复和历史回看。
-- 任务区支持选择模型和 Agent、添加附件、查看流式回复和工具步骤、停止任务、回答问题和审批工具调用。
-- 右侧可查看工作区文件、Markdown、CSV、TSV 和会话文件差异，编辑文本与表格，并在 Finder 中定位文件。
-- Skills 面板可查看工作区 Skills 并附加到任务。连接面板可管理远程 MCP。模型设置支持为 OpenCode 的 API Key 提供商添加凭据。
+[下载 macOS 版本](https://github.com/zhimoe/mygo-work/releases/latest) · [运行时与多 Agent 设计](docs/agents.md)
 
-默认显示简体中文。在「设置 → 界面语言」可切换至 English，选择会在重启后保留。
+## 安装与开始使用
 
-## macOS
+1. 在 Releases 下载 Apple Silicon 版 DMG，打开后将 **MyGoWork.app** 拖进「应用程序」。
+2. 打开 MyGo Work，选择「添加工作区」，打开一个本地文件夹。
+3. 新建任务，从输入框下方选择模型和智能体，输入任务并点击「运行任务」。模型按 OpenCode 配置提供，也可以在「设置 → 模型供应商」添加 API 密钥。
+4. 在侧栏回看任务，在右侧面板查看工作区文件、文件变更、技能与 MCP 连接。
 
-Apple Silicon 打包并测试了 Go 1.27.4、MyGo 0.10.0 和 OpenCode 2.3.2。构建要求 Go 1.27.3 或更高版本。下面的构建命令会下载并校验当前 CPU 架构的 v2 CLI，将它随应用打包。应用使用本机 ad hoc 签名。
+应用默认显示简体中文。在「设置 → 界面语言」可以即时切换到 English，选择会在下次启动时保留。
+
+发布包内置 OpenCode 2.3.2。本版在 Apple Silicon macOS 27.2 上验证。发行包使用 ad hoc 签名，尚未经过 Apple 公证，Gatekeeper 可能拒绝从其他 Mac 下载的包。也可以在本机从源码构建。
+
+## 功能
+
+| 功能 | 可用操作 |
+| --- | --- |
+| 工作区与会话 | 添加本地文件夹，新建、搜索、重命名、归档、恢复和删除会话 |
+| 任务与模型 | 选择模型、智能体与推理强度，附加文件，查看流式回复和工具步骤，停止任务 |
+| 交互与权限 | 回答引擎发来的问题，对工具请求选择允许一次、始终允许或拒绝 |
+| 文件与变更 | 查看文件树、Markdown、CSV、TSV 和会话差异，编辑文本或表格，在访达中定位文件 |
+| 技能与连接 | 浏览工作区技能并附加到任务，添加和管理远程 MCP，连接支持 API 密钥的模型供应商 |
+
+| 快捷键 | 操作 |
+| --- | --- |
+| ⌘N | 新建任务 |
+| ⇧⌘F | 搜索会话 |
+| ⌘, | 打开设置 |
+| Enter | 提交当前任务 |
+| ⇧Enter | 在输入框换行 |
+
+## 从源码运行
+
+需要 macOS、Git 和 Go 1.27.3 或更新版本。
 
 ```sh
-./scripts/build-macos.sh -skip-dmg
-open "dist/darwin-arm64/MyGoWork.app"
-```
-
-也可以从源码运行。
-
-```sh
+git clone https://github.com/zhimoe/mygo-work.git
+cd mygo-work
 ./scripts/install-opencode.sh
 go run .
 ```
 
-应用默认在 `~/Library/Application Support/MyGo Work` 存储工作区索引、引擎状态、会话及已连接的凭据。它读取 OpenCode 所识别的全局与项目配置。可以用 `MYGO_WORK_DATA_DIR` 切换应用数据目录，用 `XDG_CONFIG_HOME` 为测试指定独立的 OpenCode 全局配置目录，用 `MYGO_WORK_OPENCODE` 指定 v2 可执行文件。引擎仅监听回环地址，使用每次启动生成的密码。
+构建可分发的 DMG，或仅构建应用。
 
-本地端的目录权限、进程和网络能力遵循 OpenCode 与 macOS 的实际权限。使用内置执行模式运行任务时，文件修改、Shell 和外部目录访问会经过 OpenCode 授权。规划模式和自定义 Agent 使用 OpenCode 自身的权限规则。
+```sh
+./scripts/build-macos.sh
+./scripts/build-macos.sh -skip-dmg
+```
 
-## 验证
+输出位于 `dist/darwin-arm64/`。Intel Mac 的构建路径为 `dist/darwin-amd64/`。构建脚本下载固定版本的 OpenCode v2，校验 SHA-512 后随应用打包。配置 Developer ID 和公证前，构建默认使用 ad hoc 签名。
+
+## 本地数据与配置
+
+| 路径或变量 | 用途 |
+| --- | --- |
+| `~/Library/Application Support/MyGo Work` | 默认应用数据目录，记录工作区、语言、连接和 OpenCode 会话与凭据 |
+| `MYGO_WORK_DATA_DIR` | 指向独立的应用数据目录 |
+| `MYGO_WORK_OPENCODE` | 指定已有的 OpenCode v2 可执行文件 |
+| `XDG_CONFIG_HOME` | 为 OpenCode 指定单独的全局配置根目录 |
+
+OpenCode 会读取它支持的全局和项目配置。桌面应用管理的引擎仅监听回环地址，使用每次启动生成的密码。模型请求由 OpenCode 发往所选供应商。使用内置执行模式时，文件修改、Shell 和外部目录访问会经过授权。规划模式和自定义智能体使用各自的 OpenCode 权限规则。
+
+## 测试
 
 ```sh
 go test ./...
 go vet ./...
-MYGO_WORK_TEST_OPENCODE="$PWD/resources/darwin-arm64/opencode" \
+MYGO_WORK_TEST_OPENCODE="$(./scripts/install-opencode.sh)" \
   go test -v -run TestMacOSDesktop .
 ```
 
-macOS 集成用例在实际 MyGo WKWebView 中加载生产界面，用真实 OpenCode v2 调用本地测试模型。它使用临时工作区和应用配置，覆盖了默认中文、中英切换和重启后保留选择，以及工作区文件和表格修改、MCP 重连、流式回复、修改授权、停止和历史恢复。
+集成测试在真实的 MyGo WKWebView 和 OpenCode v2 进程中运行，由本地测试模型提供确定性响应。测试使用临时工作区，覆盖中英文切换、文件编辑、MCP 重连、流式输出、工具授权、停止、归档及重启恢复。
 
-## 设计
+## 运行时与许可
 
-Go 和 UI 之间使用引擎无关的会话、消息和权限类型。Pi 和后续引擎的接入设计见 [多 Agent 运行时设计](docs/agents.md)。
+桌面界面使用统一的会话、消息和交互类型。OpenCode v2 适配器负责 HTTP 与 SSE 转换。Pi Coding Agent 的接入思路见[多 Agent 运行时设计](docs/agents.md)。
 
 第三方许可见 [licenses](licenses/)。
