@@ -1,7 +1,7 @@
 {
   "name": "MyGoWork",
   "slug": "mygo-work",
-  "identifier": "dev.zhimoe.mygo-work",
+  "identifier": "dev.zhimoe.mygo-work.pi",
   "version": "0.1.0",
   "out": "dist",
   "resources": ["licenses"],

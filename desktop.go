@@ -108,7 +108,27 @@ func (d *Desktop) OpenLink(address string) error {
 	return mygo.Shell.OpenExternal(u.String())
 }
 
-func (d *Desktop) Version(ctx context.Context) (string, error) { return d.code.Version(ctx) }
+func (d *Desktop) Version(ctx context.Context, directory string) (string, error) {
+	if directory == "" {
+		return d.runtimes[openCodeID].Version(ctx)
+	}
+	runtime, err := d.runtime(directory)
+	if err != nil {
+		return "", err
+	}
+	return runtime.Version(ctx)
+}
+
+func (d *Desktop) SetWorkspaceRuntime(ctx context.Context, directory, id string) error {
+	runtime := d.runtimes[id]
+	if runtime == nil {
+		return errors.New("unknown coding engine")
+	}
+	if _, err := runtime.Version(ctx); err != nil {
+		return err
+	}
+	return d.folders.SetRuntime(directory, id)
+}
 
 func (d *Desktop) Sessions(ctx context.Context, dir string, archived bool, search string) ([]agent.Session, error) {
 	r, err := d.runtime(dir)

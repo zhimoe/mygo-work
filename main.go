@@ -14,13 +14,17 @@ import (
 
 	"mygo-work/internal/agent"
 	"mygo-work/internal/opencode"
+	"mygo-work/internal/pi"
 	"mygo-work/internal/workspace"
 )
 
 //go:embed web/*
 var assets embed.FS
 
-const openCodeID = "opencode"
+const (
+	openCodeID = "opencode"
+	piID       = "pi"
+)
 
 var agentEvent = mygo.NewEvent[agent.Event]("agentUpdate")
 
@@ -31,7 +35,7 @@ func main() {
 		if err != nil {
 			log.Fatal(err)
 		}
-		dir = filepath.Join(home, "Library", "Application Support", "MyGo Work")
+		dir = filepath.Join(home, "Library", "Application Support", "MyGo Work Pi")
 	}
 	dir, err := filepath.Abs(dir)
 	if err != nil {
@@ -56,16 +60,27 @@ func main() {
 		log.Fatal(err)
 	}
 	process := opencode.NewProcess(dir)
+	runtimes := map[string]agent.Runtime{openCodeID: process}
+	var closePi func()
+	if piRuntime, err := pi.Open(dir); err == nil {
+		runtimes[piID] = piRuntime
+		closePi = piRuntime.Close
+	} else {
+		log.Printf("Pi runtime: %v", err)
+	}
 	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-	defer process.Close()
-	desktop := &Desktop{folders: folders, prefs: prefs, code: process, runtimes: map[string]agent.Runtime{openCodeID: process}}
-	mygo.SetFrontend(frontend)
-	mygo.Bind(desktop)
-	mygo.App.OnQuit(func() {
+	closeRuntimes := func() {
 		cancel()
 		process.Close()
-	})
+		if closePi != nil {
+			closePi()
+		}
+	}
+	defer closeRuntimes()
+	desktop := &Desktop{folders: folders, prefs: prefs, code: process, runtimes: runtimes}
+	mygo.SetFrontend(frontend)
+	mygo.Bind(desktop)
+	mygo.App.OnQuit(closeRuntimes)
 	mygo.App.WhenReady(func() {
 		win := mygo.NewWindow(mygo.WindowOptions{
 			Title: "MyGo Work", URL: "/",

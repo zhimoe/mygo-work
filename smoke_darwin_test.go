@@ -157,6 +157,9 @@ func nativeJourney(stage string) error {
 		}
 		return click("Run task")
 	}
+	if strings.HasPrefix(stage, "pi-") {
+		return nativePiJourney(stage, await, eval, click, send)
+	}
 	if stage == "run" {
 		if err := await("fresh macOS profile defaults to Simplified Chinese", `document.documentElement.lang === "zh-CN" && document.querySelector(".hero")?.innerText.includes("你想完成什么任务？") && document.querySelector(".footer")?.innerText.includes("就绪")`); err != nil {
 			return err

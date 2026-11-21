@@ -40,7 +40,7 @@ MyGo Work 是一个面向本地文件和项目的 macOS Agent 工作台。它使
 ```sh
 git clone https://github.com/zhimoe/mygo-work.git
 cd mygo-work
-./scripts/install-opencode.sh
+MYGO_WORK_DATA_DIR="$HOME/Library/Application Support/MyGo Work Pi" ./scripts/install-opencode.sh
 go run .
 ```
 
@@ -53,11 +53,23 @@ go run .
 
 输出位于 `dist/darwin-arm64/`。Intel Mac 的构建路径为 `dist/darwin-amd64/`。构建脚本下载固定版本的 OpenCode v2，校验 SHA-512 后随应用打包。配置 Developer ID 和公证前，构建默认使用 ad hoc 签名。
 
+## Pi 实验分支
+
+`experimental/pi-agent` 从 `v0.1.0` 建立。它支持在同一个本地工作区里切换 OpenCode v2 和 Pi Coding Agent。
+
+1. 安装 [Pi Coding Agent](https://pi.dev/)，运行 `pi` 后使用 `/login` 或配置本地模型。本分支用 Pi 1.5.2 验证。
+2. 从此分支启动 MyGo Work。在工作区名称旁的「更多 → 任务引擎」选择 **Pi Coding Agent**。
+3. 新建任务，选择 Pi 的模型。切换引擎后，侧栏加载该引擎自己的会话。切回时可以继续原有任务。
+
+Pi 会话支持流式回复、工具过程、模型与推理强度选择、停止、重启恢复、归档和常用扩展交互。附件以本地路径交给 Pi。Pi 使用自身配置的模型、凭据、技能、MCP 和权限。桌面的 OpenCode 连接管理、差异面板和工具授权面板适用于 OpenCode 工作区。
+
+`MYGO_WORK_PI` 可以指定本机 Pi 的绝对路径。应用也会搜索 `PATH`、`~/.local/bin` 和 Pi 的默认安装位置。Pi 继续读取其常规配置目录，桌面会话记录存储在应用数据目录的 `pi/` 子目录。此分支默认使用独立的 `MyGo Work Pi` 应用数据目录。
+
 ## 本地数据与配置
 
 | 路径或变量 | 用途 |
 | --- | --- |
-| `~/Library/Application Support/MyGo Work` | 默认应用数据目录，记录工作区、语言、连接和 OpenCode 会话与凭据 |
+| `~/Library/Application Support/MyGo Work Pi` | 此分支默认应用数据目录，记录工作区、语言、连接和 OpenCode 会话与凭据 |
 | `MYGO_WORK_DATA_DIR` | 指向独立的应用数据目录 |
 | `MYGO_WORK_OPENCODE` | 指定已有的 OpenCode v2 可执行文件 |
 | `XDG_CONFIG_HOME` | 为 OpenCode 指定单独的全局配置根目录 |
@@ -75,8 +87,16 @@ MYGO_WORK_TEST_OPENCODE="$(./scripts/install-opencode.sh)" \
 
 集成测试在真实的 MyGo WKWebView 和 OpenCode v2 进程中运行，由本地测试模型提供确定性响应。测试使用临时工作区，覆盖中英文切换、文件编辑、MCP 重连、流式输出、工具授权、停止、归档及重启恢复。
 
+Pi 的原生桌面测试通过本机 Pi 进程调用本地模型和测试扩展，覆盖工作区切换、工具调用、模型选择、流式输出、停止、扩展确认，以及重启后恢复。
+
+```sh
+MYGO_WORK_TEST_PI="$(command -v pi)" \
+MYGO_WORK_TEST_OPENCODE="$(./scripts/install-opencode.sh)" \
+  go test -v -run TestMacOSPiDesktop .
+```
+
 ## 运行时与许可
 
-桌面界面使用统一的会话、消息和交互类型。OpenCode v2 适配器负责 HTTP 与 SSE 转换。Pi Coding Agent 的接入思路见[多 Agent 运行时设计](docs/agents.md)。
+桌面界面使用统一的会话、消息和交互类型。OpenCode v2 适配器负责 HTTP 与 SSE 转换。Pi 适配器通过 JSONL RPC 实现。详见[多 Agent 运行时设计](docs/agents.md)。
 
 第三方许可见 [licenses](licenses/)。
