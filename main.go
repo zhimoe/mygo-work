@@ -83,6 +83,11 @@ func main() {
 	mygo.Bind(desktop)
 	mygo.App.OnQuit(closeRuntimes)
 	mygo.App.WhenReady(func() {
+		if runtime.GOOS == "windows" && !mygo.WebViewAvailable() {
+			showWebViewError(desktop)
+			mygo.App.Quit()
+			return
+		}
 		options := mygo.WindowOptions{
 			Title: "MyGo Work", URL: "/",
 			Width: 1180, Height: 800, MinWidth: 780, MinHeight: 560,
@@ -101,6 +106,22 @@ func main() {
 	})
 	if err := mygo.App.Run(); err != nil {
 		log.Print(err)
+	}
+}
+
+func showWebViewError(desktop *Desktop) {
+	result, err := mygo.Dialog.Message(mygo.MessageOptions{
+		Title: "MyGo Work",
+		Type:  mygo.MessageError,
+		Message: desktop.nativeLabel(
+			"请安装 Microsoft Edge WebView2 运行时，然后重新打开 MyGo Work。",
+			"Install the Microsoft Edge WebView2 Runtime, then reopen MyGo Work.",
+		),
+		Buttons:      []string{desktop.nativeLabel("打开下载页", "Open download page"), desktop.nativeLabel("关闭", "Close")},
+		CancelButton: 1,
+	})
+	if err == nil && result.Button == 0 {
+		_ = mygo.Shell.OpenExternal("https://developer.microsoft.com/microsoft-edge/webview2/")
 	}
 }
 

@@ -1,6 +1,6 @@
 //go:build darwin || windows
 
-// These checks drive the production UI inside an actual MyGo WKWebView.
+// These checks drive the production UI inside an actual MyGo webview.
 package main
 
 import (
@@ -46,6 +46,9 @@ func TestDesktop(t *testing.T) {
 	binary := os.Getenv("MYGO_WORK_TEST_OPENCODE")
 	if binary == "" {
 		t.Skip("set MYGO_WORK_TEST_OPENCODE to the OpenCode v2 executable")
+	}
+	if !mygo.WebViewAvailable() {
+		t.Fatal("the system webview is unavailable")
 	}
 	root := t.TempDir()
 	project := filepath.Join(root, "Work")

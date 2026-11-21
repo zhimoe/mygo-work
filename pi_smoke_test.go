@@ -13,6 +13,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/egoist/mygo"
+
 	"mygo-work/internal/workspace"
 )
 
@@ -21,6 +23,9 @@ func TestPiDesktop(t *testing.T) {
 	openCode := os.Getenv("MYGO_WORK_TEST_OPENCODE")
 	if pi == "" || openCode == "" {
 		t.Skip("set MYGO_WORK_TEST_PI and MYGO_WORK_TEST_OPENCODE")
+	}
+	if !mygo.WebViewAvailable() {
+		t.Fatal("the system webview is unavailable")
 	}
 	root := t.TempDir()
 	project, profile := filepath.Join(root, "Work"), filepath.Join(root, "profile")
