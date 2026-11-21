@@ -185,7 +185,12 @@ func nativeJourney(stage string) error {
 		if mygo.App.Locale() != "en" {
 			return fmt.Errorf("native MyGo language is %s", mygo.App.Locale())
 		}
-		if err := click("Close"); err != nil {
+		if err := eval(`const modal = document.querySelector("dialog");
+modal.dispatchEvent(new PointerEvent("pointerdown", {clientX: 1, clientY: 1}));
+modal.dispatchEvent(new MouseEvent("click", {clientX: 1, clientY: 1}));`); err != nil {
+			return err
+		}
+		if err := await("clicking the backdrop dismisses settings", `!document.querySelector("dialog").open`); err != nil {
 			return err
 		}
 	}
@@ -193,10 +198,16 @@ func nativeJourney(stage string) error {
 		return err
 	}
 	if stage == "run" {
+		if err := await("new task is available in the sidebar without a duplicate in the title bar", `document.querySelector(".sidebar .new-task") && !document.querySelector('.titlebar button[aria-label="New task"]')`); err != nil {
+			return err
+		}
 		if err := click("Workspace actions"); err != nil {
 			return err
 		}
-		if err := await("engine selector hidden without Pi", `document.querySelector("[data-engines-checked]") && !document.querySelector("[data-engines-checked]").innerText.includes("Coding engine")`); err != nil {
+		if err := eval(`document.querySelector("dialog .engine-picker > summary").click()`); err != nil {
+			return err
+		}
+		if err := await("engine picker explains when Pi is unavailable in an OpenCode workspace", `document.querySelector("dialog[open] .engine-status")?.textContent.includes("Pi is unavailable.") && document.querySelector("dialog .picker-item:disabled")?.textContent === "Pi Coding Agent" && document.querySelector("dialog .picker-item[aria-pressed=true]")?.textContent === "OpenCode v2"`); err != nil {
 			return err
 		}
 		if err := click("Close"); err != nil {

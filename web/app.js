@@ -30,6 +30,11 @@ const dock = node("div", "dock");
 const dockInner = node("div", "dock-inner");
 const gates = node("div");
 const footer = node("footer", "footer");
+const footerStatus = button("", showSettings);
+const footerRuntime = node("div", "footer-runtime");
+footerRuntime.setAttribute("role", "group");
+const footerSettings = iconButton("", "settings", showSettings);
+footer.append(footerStatus, node("span", "spacer"), footerRuntime, footerSettings);
 dock.append(dockInner);
 stage.append(scroll, hero, dock);
 center.append(titlebar, stage, footer);
@@ -240,18 +245,32 @@ function renderHeader() {
   if (state.session) {
     titlebar.append(iconButton(tr("Session actions"), "ellipsis", () => sessionActions(state.directory, currentSession() || { id: state.session, title })));
   }
-  titlebar.append(iconButton(tr("New task"), "plus", () => newTask()));
 }
 
 function renderFooter() {
   const running = state.active.has(state.session) || state.submitting.has(activeKey());
   const label = state.engineError ? tr("{engine} unavailable", { engine: runtimeName() }) : !state.version ? tr("Starting {engine}…", { engine: runtimeName() }) :
     !state.connected ? tr("Reconnecting…") : running ? tr("Task in progress") : tr("Ready for new tasks");
-  const status = button(label, showSettings);
-  status.prepend(node("span", "dot " + (state.engineError || !state.connected ? "" : running ? "running" : "ready")));
-  footer.replaceChildren(status, node("span", "spacer"),
-    button(tr("Docs"), () => load("OpenLink", isPi() ? "https://docs.pi.dev/latest/" : "https://opencode.ai/docs/"), { glyph: "book-open" }),
-    iconButton(tr("Settings"), "settings", showSettings));
+  const dot = node("span", "dot " + (state.engineError || !state.connected ? "" : running ? "running" : "ready"));
+  footerStatus.replaceChildren(dot, node("span", "", label));
+  footerStatus.title = label;
+}
+
+function renderFooterActions() {
+  const folder = currentFolder();
+  const engine = runtimeName();
+  const docsTitle = tr("{engine} documentation", { engine });
+  const docs = button(tr("Docs"), () => openLink(isPi() ? "https://docs.pi.dev/latest/" : "https://opencode.ai/docs/"), {
+    glyph: "book-open", className: "pill engine-docs", title: docsTitle,
+  });
+  docs.setAttribute("aria-label", docsTitle);
+  footerRuntime.setAttribute("aria-label", tr("Coding engine"));
+  footerRuntime.replaceChildren();
+  if (folder) footerRuntime.append(enginePicker(folder, engine));
+  footerRuntime.append(docs);
+  const settings = tr("Settings");
+  footerSettings.title = settings;
+  footerSettings.setAttribute("aria-label", settings);
 }
 
 const composer = node("form", "composer");
@@ -273,6 +292,7 @@ function renderShell() {
   composerInput.setAttribute("aria-label", tr("Describe your task"));
   renderSidebar();
   renderHeader();
+  renderFooterActions();
   renderFooter();
   const draft = !state.session;
   stage.classList.toggle("draft", draft);
@@ -281,7 +301,12 @@ function renderShell() {
   hero.replaceChildren();
   if (draft && !state.directory) {
     const welcome = node("div", "welcome");
-    welcome.append(node("span", "orb"), node("h2", "", tr("Start with a workspace")),
+    const logo = node("img");
+    logo.src = "/icons/mygo-work.png";
+    logo.alt = "";
+    logo.width = 48;
+    logo.height = 48;
+    welcome.append(logo, node("h2", "", tr("Start with a workspace")),
       node("p", "", tr("Choose a folder to give your tasks a place to work.")),
       button(tr("Choose folder"), addFolder, { glyph: "folder-open", className: "primary" }));
     hero.append(welcome);
@@ -831,7 +856,9 @@ function renderQuestion(directory, session, question) {
   return wrap;
 }
 
-function showDialog(title) {
+function showDialog(title, { closeOnBackdrop = false } = {}) {
+  footerRuntime.querySelector(".engine-picker[open]")?.removeAttribute("open");
+  dialog.toggleAttribute("data-close-on-backdrop", closeOnBackdrop);
   const header = node("header", "dialog-head");
   header.append(node("h2", "", title), node("span", "spacer"), iconButton(tr("Close"), "x", () => dialog.close()));
   const content = node("div", "dialog-body");
@@ -839,6 +866,21 @@ function showDialog(title) {
   if (!dialog.open) dialog.showModal();
   return content;
 }
+
+function isDialogBackdrop(event) {
+  if (!dialog.open || event.target !== dialog) return false;
+  const { left, top, right, bottom } = dialog.getBoundingClientRect();
+  return event.clientX < left || event.clientX >= right || event.clientY < top || event.clientY >= bottom;
+}
+
+let backdropPressed = false;
+dialog.addEventListener("pointerdown", (event) => {
+  backdropPressed = event.button === 0 && isDialogBackdrop(event);
+});
+dialog.addEventListener("click", (event) => {
+  if (backdropPressed && dialog.hasAttribute("data-close-on-backdrop") && isDialogBackdrop(event)) dialog.close();
+  backdropPressed = false;
+});
 
 function promptForm(title, fields, action, submitLabel = tr("Save")) {
   const wrap = showDialog(title);
@@ -1016,19 +1058,51 @@ async function setWorkspaceRuntime(folder, key) {
   }
 }
 
-function chooseRuntime(folder) {
-  const engines = [
-    { key: "opencode", label: "OpenCode v2" },
-    { key: "pi", label: "Pi Coding Agent" },
-  ];
-  picker(tr("Coding engine"), engines, ({ key }) => setWorkspaceRuntime(folder, key), runtimeFor(folder.directory));
+function enginePicker(folder, label) {
+  const picker = node("details", "engine-picker");
+  const trigger = node("summary", "", label);
+  trigger.title = tr("Coding engine");
+  trigger.append(icon("chevron-down"));
+  const content = node("div", "engine-options");
+  picker.append(trigger, content);
+  picker.addEventListener("toggle", async () => {
+    if (!picker.open) return;
+    const list = node("div", "picker-list");
+    const current = runtimeFor(folder.directory);
+    const option = (key, name) => {
+      const item = button(name, () => {
+        picker.open = false;
+        if (dialog.contains(picker)) dialog.close();
+        else trigger.focus();
+        void setWorkspaceRuntime(folder, key);
+      }, { className: "picker-item" });
+      item.setAttribute("aria-pressed", String(key === current));
+      return item;
+    };
+    const pi = option("pi", tr("Pi Coding Agent"));
+    pi.disabled = true;
+    const status = node("p", "engine-status", tr("Checking Pi availability…"));
+    status.setAttribute("role", "status");
+    list.append(option("opencode", "OpenCode v2"), pi);
+    content.replaceChildren(list, status);
+    const available = await load("PiAvailable");
+    if (!picker.open || !pi.isConnected) return;
+    if (available) {
+      pi.disabled = false;
+      status.remove();
+    } else {
+      status.textContent = tr("Pi is unavailable. Check your Pi installation or set MYGO_WORK_PI.");
+    }
+  });
+  return picker;
 }
 
-async function workspaceActions(folder) {
+function workspaceActions(folder) {
   const content = showDialog(folder.name);
   content.append(node("p", "", folder.directory));
   const list = node("div", "picker-list");
   list.append(
+    enginePicker(folder, tr("Coding engine")),
     button(folderLabel(), () => { dialog.close(); void load("Reveal", folder.directory, "."); }, { glyph: "folder-open", className: "picker-item" }),
     button(tr("Rename workspace"), () => {
       const name = input("text", folder.name);
@@ -1051,14 +1125,6 @@ async function workspaceActions(folder) {
     }, { glyph: "x", className: "picker-item destructive" }),
   );
   content.append(list);
-  const available = await load("PiAvailable");
-  if (!content.isConnected || !dialog.open) return;
-  if (available) {
-    list.prepend(button(tr("Coding engine"), () => chooseRuntime(folder), { glyph: "settings", className: "picker-item" }));
-  } else if (runtimeFor(folder.directory) === "pi") {
-    list.prepend(button(tr("Switch to OpenCode"), () => setWorkspaceRuntime(folder, "opencode"), { glyph: "settings", className: "picker-item" }));
-  }
-  content.dataset.enginesChecked = "true";
 }
 
 function sessionActions(directory, session) {
@@ -1404,7 +1470,7 @@ function languageSettings() {
 }
 
 async function showSettings() {
-  const wrap = showDialog(tr("Settings"));
+  const wrap = showDialog(tr("Settings"), { closeOnBackdrop: true });
   const engine = node("section", "settings-section");
   const runtimeDetails = () => state.engineError ? errorLabel(state.engineError) :
     state.version ? tr("{engine} {version} · Local engine", { engine: runtimeName(), version: state.version }) :
@@ -1475,7 +1541,20 @@ async function checkVersion() {
   renderFooter();
 }
 
+document.addEventListener("click", (event) => {
+  for (const picker of document.querySelectorAll(".engine-picker[open]")) {
+    if (!picker.contains(event.target)) picker.open = false;
+  }
+});
+
 document.addEventListener("keydown", (event) => {
+  const picker = event.key === "Escape" && document.querySelector(".engine-picker[open]");
+  if (picker) {
+    event.preventDefault();
+    picker.open = false;
+    picker.querySelector("summary").focus();
+    return;
+  }
   if (!(state.platform === "darwin" ? event.metaKey : event.ctrlKey)) return;
   if (event.key.toLowerCase() === "n" && !event.shiftKey) {
     event.preventDefault();

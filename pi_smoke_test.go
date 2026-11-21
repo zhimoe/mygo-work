@@ -105,14 +105,12 @@ export default function (pi) {
 }
 
 func nativePiJourney(stage string, await func(string, string) error, eval, click, send func(string) error) error {
+	const toggleEnginePicker = `document.querySelector(".footer .engine-picker > summary").click()`
 	switchEngine := func(name string) error {
-		if err := click("Workspace actions"); err != nil {
+		if err := eval(toggleEnginePicker); err != nil {
 			return err
 		}
-		if err := await("Pi detected in workspace menu", `document.querySelector("[data-engines-checked]")?.innerText.includes("Coding engine")`); err != nil {
-			return err
-		}
-		if err := click("Coding engine"); err != nil {
+		if err := await("Pi detected in the footer engine picker", `[...document.querySelectorAll(".footer .engine-picker[open] .picker-item")].some(button => button.textContent === "Pi Coding Agent" && !button.disabled) && !document.querySelector("dialog").open`); err != nil {
 			return err
 		}
 		return click(name)
@@ -123,13 +121,13 @@ func nativePiJourney(stage string, await func(string, string) error, eval, click
 		if err := await("existing Pi workspace loaded without the Pi executable", piView+` && document.querySelector(".folder-row")`); err != nil {
 			return err
 		}
-		if err := click("Workspace actions"); err != nil {
+		if err := eval(toggleEnginePicker); err != nil {
 			return err
 		}
-		if err := await("only OpenCode recovery is available after removing Pi", `document.querySelector("[data-engines-checked]")?.innerText.includes("Switch to OpenCode") && !document.querySelector("[data-engines-checked]").innerText.includes("Coding engine")`); err != nil {
+		if err := await("Pi remains visible but disabled after removal", `document.querySelector(".footer .engine-picker[open] .engine-status")?.textContent.includes("Pi is unavailable.") && document.querySelector(".footer .picker-item[aria-pressed=true]:disabled")?.textContent === "Pi Coding Agent"`); err != nil {
 			return err
 		}
-		if err := click("Switch to OpenCode"); err != nil {
+		if err := click("OpenCode v2"); err != nil {
 			return err
 		}
 		return await("workspace recovered to OpenCode", ready+` && !(`+piView+`)`)
@@ -141,7 +139,7 @@ func nativePiJourney(stage string, await func(string, string) error, eval, click
 		if err := switchEngine("Pi Coding Agent"); err != nil {
 			return err
 		}
-		if err := await("Pi workspace ready with models from Pi", ready+" && "+piView+` && document.querySelector(".composer .model")?.textContent.includes("Pi ")`); err != nil {
+		if err := await("Pi workspace ready with models and docs for Pi", ready+" && "+piView+` && document.querySelector(".composer .model")?.textContent.includes("Pi ") && document.querySelector('.footer .engine-docs[aria-label="Pi documentation"]')`); err != nil {
 			return err
 		}
 		if err := eval(`document.querySelector(".composer .model").click()`); err != nil {

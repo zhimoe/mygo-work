@@ -2,7 +2,9 @@
 
 `internal/agent.Runtime` 定义桌面端使用的会话、模型选择、提交、历史、停止、交互和事件接口。`internal/opencode` 将 OpenCode v2 的 HTTP 和 SSE 转成这些类型。`internal/pi` 连接本机 Pi Coding Agent 的 JSONL RPC 进程。
 
-工作区保存目录与当前运行时 ID。切换运行时后，桌面重新加载工作区会话和引擎能力。OpenCode 管理自己的会话与凭据。Pi 的工作区进程使用各自的会话文件，桌面索引保存标题、归档状态、工作区及现有会话文件的相对名称。
+工作区保存目录与当前运行时 ID。打开引擎列表时，前端通过 `PiAvailable` 检测本机 Pi。Pi 不可用时，OpenCode 仍可选。`SetWorkspaceRuntime` 校验目标引擎可运行后保存选择，桌面重新加载并按所选引擎恢复工作区会话、模型和文档入口。
+
+OpenCode 管理自己的会话与凭据。Pi 的进程使用各会话对应的文件，桌面索引保存标题、归档状态、工作区及现有会话文件的相对名称。
 
 ## Pi RPC
 
