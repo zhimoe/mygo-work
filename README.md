@@ -40,7 +40,7 @@ MyGo Work 是一个面向本地文件和项目的 macOS Agent 工作台。它使
 ```sh
 git clone https://github.com/zhimoe/mygo-work.git
 cd mygo-work
-MYGO_WORK_DATA_DIR="$HOME/Library/Application Support/MyGo Work Pi" ./scripts/install-opencode.sh
+./scripts/install-opencode.sh
 go run .
 ```
 
