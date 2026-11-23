@@ -1,6 +1,6 @@
 # MyGo Work Windows 安装指南
 
-适用于源码构建的 v0.2.0 Windows amd64（x64）版本。安装包内置 OpenCode 2.3.2，无需另外安装 Node.js 或 npm。
+适用于源码构建的 v0.2.0 Windows amd64（x64）版本。安装包内置 OpenCode 2.3.2 的 JavaScript 构建和 Node.js 26.4.0，无需另外安装 Node.js 或 npm。应用会运行 `--version` 确认 OpenCode 可启动，但不再限制版本号。
 
 ## 1. 需要拷贝什么
 
@@ -8,8 +8,8 @@
 
 | 使用方式 | 需要拷贝 | 大小 |
 | --- | --- | --- |
-| 安装版（推荐） | 只拷贝 `mygo-work-setup-0.2.0-amd64.exe` 这一个文件 | 约 100 MB |
-| 便携版 | 拷贝整个 `dist/windows-amd64/` 文件夹 | 260 MB |
+| 安装版（推荐） | 只拷贝 `mygo-work-setup-0.2.0-amd64.exe` 这一个文件 | 约 67 MB |
+| 便携版 | 拷贝整个 `dist/windows-amd64/` 文件夹 | 约 273 MB（含安装器；只保留运行时约 193 MB） |
 
 便携版拷贝后可以删除以下内容，不影响运行：
 
@@ -21,12 +21,16 @@
 
 ```
 MyGoWork.exe
-opencode.exe
+opencode.mjs
+assets\
+node.exe
 ```
 
-不要只拷贝 `MyGoWork.exe`，也不要只拷贝 `opencode.exe`。应用启动时会在 `MyGoWork.exe` 同目录查找 `opencode.exe`。
+不要只拷贝 `MyGoWork.exe`。`opencode.mjs` 依赖同级的 `assets\` 和 `node.exe`。
 
-> 不要拷贝整个仓库或 `resources/windows-amd64/opencode.exe`。`resources/` 只是构建时的资源来源，不是可直接运行的发行包。
+如果使用自行安装的 `opencode.exe`，不需要带 `opencode.mjs` / `assets\` / `node.exe`。把它放进 PATH，或设置 `MYGO_WORK_OPENCODE` 指向它即可，不要求放在固定目录。应用优先使用内置 JS bundle，JS 不可用时回退到 `opencode.exe`。
+
+> 不要拷贝整个仓库或 `resources/windows-amd64/` 里的单个文件。`resources/` 只是构建时的资源来源，不是可直接运行的发行包。
 
 ## 2. 系统要求
 
@@ -34,7 +38,7 @@ opencode.exe
 - Microsoft Edge WebView2 Runtime
   - Windows 11 通常已内置
   - Windows 10 如提示缺失，请安装：[WebView2 Runtime](https://developer.microsoft.com/microsoft-edge/webview2/)
-- 安装版约占 280 MB 磁盘空间；便携版约 260 MB
+- 安装版约占 200 MB 磁盘空间；便携版运行时约 193 MB
 - 安装版为当前用户安装，**不需要管理员权限**
 - 使用云端模型时需要网络连接
 
@@ -68,7 +72,9 @@ mygo-work-setup-0.2.0-amd64.exe /S
 
 ```
 MyGoWork.exe
-opencode.exe
+opencode.mjs
+assets\
+node.exe
 licenses\
 Uninstall.exe
 ```
@@ -81,7 +87,7 @@ Uninstall.exe
    D:\Apps\MyGoWork\
    ```
 
-2. 确认 `MyGoWork.exe` 和 `opencode.exe` 在同一目录。
+2. 确认 `MyGoWork.exe`、`opencode.mjs`、`assets\` 和 `node.exe` 都在同一目录。
 3. 双击 `MyGoWork.exe` 运行。
 4. 如需桌面快捷方式，可右键 `MyGoWork.exe` →「发送到」→「桌面快捷方式」。
 
@@ -94,7 +100,8 @@ Get-ChildItem -Recurse -File | Unblock-File
 也可以只解除单个文件：
 
 ```powershell
-Unblock-File .\opencode.exe
+Unblock-File .\opencode.mjs
+Unblock-File .\node.exe
 ```
 
 安装版由安装器自行写入文件，通常不带这个标记；便携版从网络拷贝后建议先执行上面的命令。
@@ -111,7 +118,7 @@ Unblock-File .\opencode.exe
 4. 右下角显示当前引擎。点击可在 **OpenCode v2** 和 **Pi Coding Agent** 之间切换。
    - OpenCode 已内置，开箱即用。
    - Pi 不随安装包提供，需要单独安装 Pi CLI；未安装时 Pi 选项不可用。
-   - Windows 上默认从 PATH 查找 `pi`，node 由 `pi.cmd` 自己查找，应用不再单独检查 node。也可以设置 `MYGO_WORK_PI` 指向 `pi.exe` 或 `pi.cmd`，此时不要求 PATH 中有 `pi`。
+   - Windows 上直接运行 PATH 中的 `pi`（通过 cmd.exe 启动 `pi.cmd`），node 由 `pi.cmd` 自己查找，应用不预先定位 Pi；`pi --version` 有输出即视为可用。也可以设置 `MYGO_WORK_PI` 指向 `pi.exe` 或 `pi.cmd`，此时不要求 PATH 中有 `pi`。
 
 ### 本地数据位置
 
@@ -125,7 +132,8 @@ Unblock-File .\opencode.exe
 | 变量 | 用途 |
 | --- | --- |
 | `MYGO_WORK_DATA_DIR` | 指定独立的应用数据目录 |
-| `MYGO_WORK_OPENCODE` | 指定已有的 OpenCode v2 可执行文件 |
+| `MYGO_WORK_OPENCODE` | 指定已有的 OpenCode 可执行文件、`.cmd` 或 `.mjs` |
+| `MYGO_WORK_NODE` | 指定运行 OpenCode JavaScript bundle 的 node |
 | `MYGO_WORK_PI` | 指定本机 Pi CLI 路径 |
 
 ## 6. 卸载
@@ -158,16 +166,24 @@ rmdir /s /q "%APPDATA%\MyGo Work"
 
 安装包和程序均为未签名构建。确认文件来源可信后，选择「更多信息」→「仍要运行」。
 
-**提示 OpenCode v2 executable unavailable**
+**提示 OpenCode executable unavailable**
 
-- 便携版检查 `opencode.exe` 是否与 `MyGoWork.exe` 同目录。
-- 检查 `opencode.exe` 是否被杀毒软件隔离。
-- 也可以通过 `MYGO_WORK_OPENCODE` 指定 OpenCode 完整路径。
+- 便携版检查 `opencode.mjs`、`assets\` 和 `node.exe` 是否都在 `MyGoWork.exe` 同目录。
+- 检查这些文件是否被杀毒软件隔离。
+- 如果使用自行安装的 `opencode.exe`，确认它在 PATH 中，或通过 `MYGO_WORK_OPENCODE` 指定完整路径。
 - 查看日志：`%APPDATA%\MyGo Work\engine\opencode.log`。
 
 **Pi 选项是灰的**
 
-Pi 不包含在安装包内。请先安装 Pi Coding Agent，运行 `pi` 完成 `/login` 或模型配置，然后重新打开应用。Windows 上默认从 PATH 查找 `pi`，node 由 `pi.cmd` 自己查找；如果 Pi 在自定义路径，设置 `MYGO_WORK_PI` 指向 `pi.exe` 或 `pi.cmd`，此时不要求 PATH 中有 `pi`。
+Pi 不包含在安装包内。请先安装 Pi Coding Agent，运行 `pi` 完成 `/login` 或模型配置，然后重新打开应用。应用直接运行 PATH 中的 `pi`，node 由 `pi.cmd` 自己查找；`pi --version` 有输出即视为可用。
+
+如果仍然不可用，在终端运行 `where.exe pi` 查看实际路径（`where` 是 PowerShell 别名，请用 `where.exe`），然后设置 `MYGO_WORK_PI` 指向该文件：
+
+```powershell
+[Environment]::SetEnvironmentVariable("MYGO_WORK_PI", "C:\Users\<你>\.pi\agent\bin\pi.cmd", "User")
+```
+
+设置后完全退出并重新打开 MyGo Work。也可以在设置页点击「检查连接」查看具体错误。
 
 **ARM64 Windows 上能用吗**
 
@@ -179,9 +195,10 @@ v0.2.0 amd64 构建产物 SHA-256：
 
 | 文件 | SHA-256 |
 | --- | --- |
-| `mygo-work-setup-0.2.0-amd64.exe` | `95499e21d090a509856dae6a171a310eca2c8fdb95db7baacdb0410e27220ee6` |
-| `MyGoWork.exe` | `ebf29e7adbc64f737d9ab2ba20a982fd6233fb64a9e88a5f26ef033e7fda6d7f` |
-| `opencode.exe` | `5d52d86e2c3fd2c4d51cefc893f64c9ee66bc2e9535332195802f7c646b2a3a3` |
+| `mygo-work-setup-0.2.0-amd64.exe` | `3ee93fb87504a05c135486a1525d5693d91d847ce2ef2d79bb6f649f457cb141` |
+| `MyGoWork.exe` | `55b827748fe5cbcd9f34fd5cbf3c38b6e3552b15ea390f418bbb1ec9d338daa6` |
+| `opencode.mjs` | `0b6dac3f5089361f571f84568fc443383daf13c85042246ccd5f2579c2bd4888` |
+| `node.exe` | `3193d7f751b8a07bd4acc70e81946ae9c6efdee83e07ad1c8d0e4089df7c5cef` |
 
 在 Windows 上校验：
 

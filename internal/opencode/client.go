@@ -111,8 +111,8 @@ func (c *Client) Version(ctx context.Context) (string, error) {
 	if err := c.call(ctx, "GET", "/api/info", nil, &info); err != nil {
 		return "", err
 	}
-	if !v2Version.MatchString(info.Version) {
-		return "", fmt.Errorf("incompatible OpenCode server version %q", info.Version)
+	if info.Version == "" {
+		return "", errors.New("OpenCode server did not report a version")
 	}
 	return info.Version, nil
 }

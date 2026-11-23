@@ -58,11 +58,7 @@ type connection struct {
 }
 
 func startRPC(ctx context.Context, directory string, stderr io.Writer, notify func(record), args ...string) (*connection, error) {
-	launcher, err := executable()
-	if err != nil {
-		return nil, err
-	}
-	cmd := launcher.command(ctx, append([]string{"--mode", "rpc"}, args...)...)
+	cmd := command(ctx, append([]string{"--mode", "rpc"}, args...)...)
 	cmd.Dir = directory
 	cmd.Stderr = stderr
 	input, err := cmd.StdinPipe()

@@ -14,3 +14,6 @@ func Command(ctx context.Context, binary string, args ...string) *exec.Cmd {
 	cmd.Cancel = func() error { return syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL) }
 	return cmd
 }
+
+// SetCmdLine is a no-op outside Windows.
+func SetCmdLine(*exec.Cmd, string) {}

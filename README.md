@@ -15,9 +15,10 @@ Windows 安装版与便携版的完整步骤见 [Windows 安装指南](docs/wind
 | 平台 | 安装方式 |
 | --- | --- |
 | macOS Apple Silicon | 打开 DMG，把 **MyGoWork.app** 拖进「应用程序」 |
+| Windows 11 x64 | 运行 `mygo-work-setup-0.2.0-amd64.exe`，系统需安装 [Microsoft Edge WebView2 Runtime](https://developer.microsoft.com/microsoft-edge/webview2/) |
 | Windows 11 ARM64 | 运行 `mygo-work-setup-0.2.0-arm64.exe`，系统需安装 [Microsoft Edge WebView2 Runtime](https://developer.microsoft.com/microsoft-edge/webview2/) |
 
-安装包内置 **OpenCode 2.3.2**。macOS 包使用 ad hoc 签名，尚未经过 Apple 公证。Windows 安装包采用未签名构建。也可以在本机从源码构建。
+Windows amd64 包内置 **OpenCode 2.3.2 的 JavaScript 构建**和 Node.js 26.4.0，不需要另外安装 Node.js；Windows ARM64 包使用 OpenCode 官方构建。macOS 包使用 ad hoc 签名，尚未经过 Apple 公证。Windows 安装包采用未签名构建。也可以在本机从源码构建。应用会运行 `--version` 确认 OpenCode 可启动，但不再限制版本号。
 
 ## 开始使用
 
@@ -33,7 +34,7 @@ Windows 安装版与便携版的完整步骤见 [Windows 安装指南](docs/wind
 2. 打开工作区，点击右下角「文档」旁的引擎名称，在按钮上方展开的列表中选择 **Pi Coding Agent** 或 **OpenCode v2**。也可以从工作区名称旁的「更多 → 任务引擎」切换。
 3. 每个工作区独立保存所选引擎。切回原引擎可以继续原有会话，右下角的「文档」会打开当前引擎的官方文档。
 
-Pi 不可用时，选择器会禁用 Pi 选项，仍可切回 OpenCode。安装后可重新打开选择器检查，若安装器更新了系统 PATH，则重新启动应用。Windows 上默认从 PATH 查找 `pi`，node 由 `pi.cmd` 自己查找，应用不再单独检查 node。如果 Pi 放在自定义路径，可以用 `MYGO_WORK_PI` 指向 `pi.exe` 或 `pi.cmd`，此时不要求 PATH 中有 `pi`。
+Pi 不可用时，选择器会禁用 Pi 选项，仍可切回 OpenCode。安装后可重新打开选择器检查，若安装器更新了系统 PATH，则重新启动应用。Windows 上直接运行 PATH 中的 `pi`（通过 cmd.exe 启动 `pi.cmd`），node 由 `pi.cmd` 自己查找；`pi --version` 有输出即视为可用。如果 Pi 放在自定义路径，可以用 `MYGO_WORK_PI` 指向 `pi.exe` 或 `pi.cmd`，此时不要求 PATH 中有 `pi`。
 
 Pi 使用本机 Pi 的模型、凭据、技能、MCP 和权限配置。Pi 会话支持流式回复、工具步骤、模型选择、停止、归档、恢复和常见 RPC 扩展表单。附件以本地路径交给 Pi。桌面的 OpenCode 连接管理、差异面板和工具授权适用于 OpenCode 工作区。
 
@@ -68,15 +69,23 @@ go run .
 ./scripts/build-macos.sh
 ```
 
-在 macOS 上交叉构建 Windows 安装器：
+在 macOS 上交叉构建 Windows amd64 安装器：
 
 ```sh
-# Windows 安装器需要 NSIS 的 makensis 命令，例如 brew install makensis
-./scripts/build-windows-arm64.sh
+# 需要 Git、Bun 1.4.4、unzip 和 NSIS 的 makensis
+./scripts/build-opencode-js.sh   # 构建 OpenCode 2.3.2 JS bundle + Node 26.4.0
 ./scripts/build-windows-amd64.sh
 ```
 
-输出分别位于 `dist/darwin-arm64/`、`dist/windows-arm64/` 和 `dist/windows-amd64/`。macOS 使用 `-skip-dmg` 可仅构建应用，Windows 使用 `-skip-installer` 可仅构建便携目录。Windows 便携运行时需保留 `MyGoWork.exe` 与同目录的 `opencode.exe`。构建时脚本下载固定版本的 OpenCode，校验包完整性后再打包。
+`build-opencode-js.sh` 会克隆 OpenCode `v2.3.2`、构建 `opencode.mjs` 和 `assets/`，并把 Node 26.4.0 的 `node.exe` 放进 `resources/windows-amd64/`。如果该目录没有 JS bundle，`build-windows-amd64.sh` 会回退到下载 OpenCode 官方 Bun 构建。
+
+Windows ARM64 使用：
+
+```sh
+./scripts/build-windows-arm64.sh
+```
+
+输出分别位于 `dist/darwin-arm64/`、`dist/windows-arm64/` 和 `dist/windows-amd64/`。macOS 使用 `-skip-dmg` 可仅构建应用，Windows 使用 `-skip-installer` 可仅构建便携目录。Windows 便携运行时需保留 `MyGoWork.exe`、`opencode.mjs`、`assets/` 和 `node.exe`。如果使用自行安装的 `opencode.exe`，把它放进 PATH 或设置 `MYGO_WORK_OPENCODE` 即可，不要求放在固定目录。
 
 桌面应用图标、欢迎页和页面图标共用 `web/icons/mygo-work.png`，打包路径在 `mygo.json` 的 `icon` 中配置。
 
@@ -87,7 +96,8 @@ go run .
 | macOS 的 `~/Library/Application Support/MyGo Work` | 默认应用数据目录 |
 | Windows 的 `%APPDATA%\MyGo Work` | 默认应用数据目录 |
 | `MYGO_WORK_DATA_DIR` | 指定独立的应用数据目录 |
-| `MYGO_WORK_OPENCODE` | 指定已有的 OpenCode v2 可执行文件 |
+| `MYGO_WORK_OPENCODE` | 指定已有的 OpenCode 可执行文件、`.cmd` 或 `.mjs` |
+| `MYGO_WORK_NODE` | 指定运行 OpenCode JavaScript bundle 的 node |
 | `MYGO_WORK_PI` | 指定本机 Pi CLI |
 | `XDG_CONFIG_HOME` | 为 OpenCode 指定单独的全局配置根目录 |
 

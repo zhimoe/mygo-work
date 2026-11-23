@@ -2,7 +2,6 @@ package opencode
 
 import (
 	"bufio"
-	"bytes"
 	"context"
 	"crypto/rand"
 	"encoding/hex"
@@ -14,18 +13,10 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"regexp"
-	"runtime"
 	"strings"
 	"sync"
 	"time"
-
-	"mygo-work/internal/process"
 )
-
-const TestedVersion = "2.3.2"
-
-var v2Version = regexp.MustCompile(`^(opencode v?)?2\.[0-9]+\.[0-9]+[^\s]*$`)
 
 type Process struct {
 	ctx      context.Context
@@ -77,7 +68,7 @@ func (p *Process) client(ctx context.Context) (*Client, error) {
 	stop := context.AfterFunc(p.ctx, cancel)
 	defer stop()
 
-	bin, err := binary(startCtx, p.dir)
+	bin, err := resolveLauncher(startCtx, p.dir)
 	if err != nil {
 		return nil, err
 	}
@@ -95,41 +86,7 @@ func (p *Process) client(ctx context.Context) (*Client, error) {
 	return client, nil
 }
 
-func binary(ctx context.Context, dir string) (string, error) {
-	bin := os.Getenv("MYGO_WORK_OPENCODE")
-	name := "opencode"
-	if runtime.GOOS == "windows" {
-		name += ".exe"
-	}
-	candidates := []string{bin, filepath.Join(dir, "bin", name)}
-	if exe, err := os.Executable(); err == nil {
-		folder := filepath.Dir(exe)
-		candidates = append(candidates, filepath.Join(folder, name), filepath.Join(folder, "..", "Resources", "opencode"))
-	}
-	if home, err := os.UserHomeDir(); err == nil {
-		candidates = append(candidates, filepath.Join(home, ".opencode", "bin", name))
-	}
-	candidates = append(candidates, "opencode2", "opencode", "/opt/homebrew/bin/opencode", "/usr/local/bin/opencode")
-	if bin != "" {
-		candidates = []string{bin}
-	}
-	for _, path := range candidates {
-		if path == "" {
-			continue
-		}
-		path, err := exec.LookPath(path)
-		if err != nil {
-			continue
-		}
-		output, err := process.Command(ctx, path, "--version").Output()
-		if err == nil && v2Version.Match(bytes.TrimSpace(output)) {
-			return filepath.Abs(path)
-		}
-	}
-	return "", fmt.Errorf("OpenCode v2 executable unavailable. Install with scripts/install-opencode.sh or set MYGO_WORK_OPENCODE (tested with %s)", TestedVersion)
-}
-
-func (p *Process) start(ctx context.Context, bin string) (*child, error) {
+func (p *Process) start(ctx context.Context, bin launcher) (*child, error) {
 	root := filepath.Join(p.dir, "engine")
 	env := make(map[string]string)
 	for _, key := range []string{"DATA", "STATE", "CACHE"} {
@@ -147,7 +104,7 @@ func (p *Process) start(ctx context.Context, bin string) (*child, error) {
 	rand.Read(secret[:])
 	server := &child{pass: hex.EncodeToString(secret[:]), done: make(chan struct{})}
 	env["OPENCODE_PASSWORD"] = server.pass
-	cmd := process.Command(p.ctx, bin, "serve", "--hostname", "127.0.0.1", "--port", "0")
+	cmd := bin.command(p.ctx, "serve", "--hostname", "127.0.0.1", "--port", "0")
 	server.cmd = cmd
 	cmd.Dir = root
 	cmd.Env = append(cmd.Environ(), "OPENCODE_SERVER_PASSWORD=")

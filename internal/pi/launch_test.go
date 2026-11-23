@@ -1,9 +1,6 @@
 package pi
 
-import (
-	"context"
-	"testing"
-)
+import "testing"
 
 func TestQuoteCmd(t *testing.T) {
 	cases := []struct{ in, want string }{
@@ -19,31 +16,36 @@ func TestQuoteCmd(t *testing.T) {
 	}
 }
 
-func TestIsExecutable(t *testing.T) {
-	cases := map[string]bool{
-		`pi.exe`: true,
-		`pi.COM`: true,
-		`pi.cmd`: false,
-		`pi.ps1`: false,
-		`pi`:     false,
+func TestWindowsProcessCommandLine(t *testing.T) {
+	shell := `C:\Windows\system32\cmd.exe`
+	cases := []struct {
+		name string
+		args []string
+		want string
+	}{
+		{"pi", []string{"--version"}, `"C:\Windows\system32\cmd.exe" /d /s /c "pi "--version""`},
+		{`C:\Program Files\Pi\pi.cmd`, []string{"--version"}, `"C:\Windows\system32\cmd.exe" /d /s /c ""C:\Program Files\Pi\pi.cmd" "--version""`},
 	}
-	for path, want := range cases {
-		if got := isExecutable(path); got != want {
-			t.Errorf("isExecutable(%q) = %v, want %v", path, got, want)
+	for _, c := range cases {
+		if got := windowsProcessCommandLine(shell, c.name, c.args); got != c.want {
+			t.Errorf("windowsProcessCommandLine(%q, %q) = %q, want %q", c.name, c.args, got, c.want)
 		}
 	}
 }
 
-func TestShellCommand(t *testing.T) {
-	l := launcher{exe: "cmd.exe", target: `C:\Program Files\Pi\pi.cmd`, shell: true}
-	cmd := l.command(context.Background(), "--version")
-	want := []string{"cmd.exe", "/d", "/s", "/c", `""C:\Program Files\Pi\pi.cmd" "--version""`}
-	if len(cmd.Args) != len(want) {
-		t.Fatalf("args = %q, want %q", cmd.Args, want)
+func TestWindowsCommandLine(t *testing.T) {
+	cases := []struct {
+		name string
+		args []string
+		want string
+	}{
+		{"pi", []string{"--version"}, `"pi "--version""`},
+		{`C:\Program Files\Pi\pi.cmd`, []string{"--version"}, `""C:\Program Files\Pi\pi.cmd" "--version""`},
+		{"pi", []string{"--mode", "rpc", "--session-dir", `C:\work dir`}, `"pi "--mode" "rpc" "--session-dir" "C:\work dir""`},
 	}
-	for i := range want {
-		if cmd.Args[i] != want[i] {
-			t.Fatalf("args = %q, want %q", cmd.Args, want)
+	for _, c := range cases {
+		if got := windowsCommandLine(c.name, c.args); got != c.want {
+			t.Errorf("windowsCommandLine(%q, %q) = %q, want %q", c.name, c.args, got, c.want)
 		}
 	}
 }

@@ -99,13 +99,9 @@ func (r *Runtime) Close() {
 }
 
 func (r *Runtime) Version(ctx context.Context) (string, error) {
-	launcher, err := executable()
-	if err != nil {
-		return "", err
-	}
 	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
 	defer cancel()
-	out, err := launcher.command(ctx, "--version").Output()
+	out, err := command(ctx, "--version").Output()
 	if err != nil {
 		return "", fmt.Errorf("start Pi: %w", err)
 	}
