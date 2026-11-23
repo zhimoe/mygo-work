@@ -10,6 +10,8 @@ MyGo Work 是一个面向本地文件和项目的 Agent 工作台。桌面界面
 
 以下说明适用于仓库当前源码构建的 v0.2.0。已发布版本的可用平台以 GitHub Releases 附件为准。[从源码构建](#从源码构建)
 
+Windows 安装版与便携版的完整步骤见 [Windows 安装指南](docs/windows-install.md)。
+
 | 平台 | 安装方式 |
 | --- | --- |
 | macOS Apple Silicon | 打开 DMG，把 **MyGoWork.app** 拖进「应用程序」 |
@@ -31,7 +33,7 @@ MyGo Work 是一个面向本地文件和项目的 Agent 工作台。桌面界面
 2. 打开工作区，点击右下角「文档」旁的引擎名称，在按钮上方展开的列表中选择 **Pi Coding Agent** 或 **OpenCode v2**。也可以从工作区名称旁的「更多 → 任务引擎」切换。
 3. 每个工作区独立保存所选引擎。切回原引擎可以继续原有会话，右下角的「文档」会打开当前引擎的官方文档。
 
-Pi 不可用时，选择器会禁用 Pi 选项，仍可切回 OpenCode。安装后可重新打开选择器检查，若安装器更新了系统 PATH，则重新启动应用。如果 Pi 放在自定义路径，可以用 `MYGO_WORK_PI` 指向它。
+Pi 不可用时，选择器会禁用 Pi 选项，仍可切回 OpenCode。安装后可重新打开选择器检查，若安装器更新了系统 PATH，则重新启动应用。Windows 上默认从 PATH 查找 `pi`，node 由 `pi.cmd` 自己查找，应用不再单独检查 node。如果 Pi 放在自定义路径，可以用 `MYGO_WORK_PI` 指向 `pi.exe` 或 `pi.cmd`，此时不要求 PATH 中有 `pi`。
 
 Pi 使用本机 Pi 的模型、凭据、技能、MCP 和权限配置。Pi 会话支持流式回复、工具步骤、模型选择、停止、归档、恢复和常见 RPC 扩展表单。附件以本地路径交给 Pi。桌面的 OpenCode 连接管理、差异面板和工具授权适用于 OpenCode 工作区。
 
@@ -66,14 +68,15 @@ go run .
 ./scripts/build-macos.sh
 ```
 
-在 macOS 上交叉构建 Windows ARM64 安装器：
+在 macOS 上交叉构建 Windows 安装器：
 
 ```sh
-# Windows 安装器需要 NSIS 的 makensis 命令
+# Windows 安装器需要 NSIS 的 makensis 命令，例如 brew install makensis
 ./scripts/build-windows-arm64.sh
+./scripts/build-windows-amd64.sh
 ```
 
-输出分别位于 `dist/darwin-arm64/` 和 `dist/windows-arm64/`。macOS 使用 `-skip-dmg` 可仅构建应用，Windows 使用 `-skip-installer` 可仅构建便携目录。Windows 便携运行时需保留 `MyGoWork.exe` 与同目录的 `opencode.exe`。构建时脚本下载固定版本的 OpenCode，校验包完整性后再打包。
+输出分别位于 `dist/darwin-arm64/`、`dist/windows-arm64/` 和 `dist/windows-amd64/`。macOS 使用 `-skip-dmg` 可仅构建应用，Windows 使用 `-skip-installer` 可仅构建便携目录。Windows 便携运行时需保留 `MyGoWork.exe` 与同目录的 `opencode.exe`。构建时脚本下载固定版本的 OpenCode，校验包完整性后再打包。
 
 桌面应用图标、欢迎页和页面图标共用 `web/icons/mygo-work.png`，打包路径在 `mygo.json` 的 `icon` 中配置。
 

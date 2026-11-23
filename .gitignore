@@ -2,3 +2,4 @@
 /dist/
 /resources/darwin-*/opencode
 /resources/windows-arm64/opencode.exe
+/resources/windows-amd64/opencode.exe

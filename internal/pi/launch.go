@@ -3,6 +3,7 @@ package pi
 import (
 	"context"
 	"errors"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -14,63 +15,83 @@ import (
 
 type launcher struct {
 	exe    string
-	script string
+	target string // target of cmd.exe when shell is set
+	shell  bool
 }
 
+// executable uses MYGO_WORK_PI when it is set, otherwise pi from PATH. On
+// Windows a .cmd or .ps1 launcher runs through cmd.exe; node is not checked
+// separately: the launcher itself reports whether it can start.
 func executable() (launcher, error) {
-	home, _ := os.UserHomeDir()
-	dirs := []string{"pi", filepath.Join(home, ".local", "bin", "pi"), filepath.Join(home, ".pi", "agent", "bin", "pi")}
-	if runtime.GOOS == "windows" {
-		dirs = append(dirs, filepath.Join(os.Getenv("APPDATA"), "npm", "pi.cmd"))
-	} else {
-		dirs = append(dirs, "/opt/homebrew/bin/pi", "/usr/local/bin/pi")
+	command := "pi"
+	override := strings.Trim(strings.TrimSpace(os.Getenv("MYGO_WORK_PI")), `"'`)
+	if override != "" {
+		command = override
 	}
-	if override := os.Getenv("MYGO_WORK_PI"); override != "" {
-		dirs = []string{override}
+	path, err := exec.LookPath(command)
+	if err == nil {
+		if runtime.GOOS == "windows" && !isExecutable(path) {
+			shell, err := commandProcessor()
+			if err != nil {
+				return launcher{}, err
+			}
+			return launcher{exe: shell, target: path, shell: true}, nil
+		}
+		return launcher{exe: path}, nil
 	}
-	for _, candidate := range dirs {
-		if path, err := exec.LookPath(candidate); err == nil {
-			if runtime.GOOS != "windows" || strings.EqualFold(filepath.Ext(path), ".exe") {
+	if runtime.GOOS != "windows" && override == "" {
+		home, _ := os.UserHomeDir()
+		for _, candidate := range []string{
+			filepath.Join(home, ".local", "bin", "pi"),
+			filepath.Join(home, ".pi", "agent", "bin", "pi"),
+			"/opt/homebrew/bin/pi",
+			"/usr/local/bin/pi",
+		} {
+			if path, err := exec.LookPath(candidate); err == nil {
 				return launcher{exe: path}, nil
 			}
-			if found, ok := nodeLauncher(path); ok {
-				return found, nil
-			}
 		}
 	}
-	return launcher{}, errors.New("Pi executable unavailable. Install Pi Coding Agent or set MYGO_WORK_PI")
+	return launcher{}, fmt.Errorf("Pi executable unavailable: %v", err)
 }
 
-// Resolve the launchers produced by the Pi installer and npm. Launch Node
-// directly so workspace paths never pass through the Windows command parser.
-func nodeLauncher(path string) (launcher, bool) {
-	if ext := strings.ToLower(filepath.Ext(path)); ext != ".cmd" && ext != ".ps1" {
-		return launcher{}, false
+func isExecutable(path string) bool {
+	switch strings.ToLower(filepath.Ext(path)) {
+	case ".exe", ".com":
+		return true
 	}
-	bin := filepath.Dir(path)
-	for _, script := range []string{
-		filepath.Join(bin, "pi-launcher.js"),
-		filepath.Join(bin, "node_modules", "@earendil-works", "pi-coding-agent", "dist", "bundle", "cli.js"),
-	} {
-		if info, err := os.Stat(script); err != nil || !info.Mode().IsRegular() {
-			continue
-		}
-		for _, candidate := range []string{filepath.Join(bin, "node.exe"), filepath.Join(os.Getenv("LOCALAPPDATA"), "pi-node", "current", "node.exe"), "node.exe"} {
-			if node, err := exec.LookPath(candidate); err == nil {
-				return launcher{exe: node, script: script}, true
-			}
+	return false
+}
+
+func commandProcessor() (string, error) {
+	if comspec := strings.TrimSpace(os.Getenv("COMSPEC")); comspec != "" {
+		if path, err := exec.LookPath(comspec); err == nil {
+			return path, nil
 		}
 	}
-	return launcher{}, false
+	path, err := exec.LookPath("cmd.exe")
+	if err != nil {
+		return "", errors.New("cmd.exe is unavailable")
+	}
+	return path, nil
 }
 
 func (l launcher) command(ctx context.Context, args ...string) *exec.Cmd {
-	if l.script != "" {
-		args = append([]string{l.script}, args...)
+	if l.shell {
+		line := "\"" + quoteCmd(l.target)
+		for _, arg := range args {
+			line += " " + quoteCmd(arg)
+		}
+		line += "\""
+		return process.Command(ctx, l.exe, "/d", "/s", "/c", line)
 	}
 	cmd := process.Command(ctx, l.exe, args...)
 	if runtime.GOOS == "darwin" {
 		cmd.Env = append(os.Environ(), "PATH="+os.Getenv("PATH")+":/opt/homebrew/bin:/usr/local/bin")
 	}
 	return cmd
+}
+
+func quoteCmd(s string) string {
+	return `"` + strings.ReplaceAll(s, `"`, `""`) + `"`
 }

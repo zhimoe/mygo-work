@@ -103,7 +103,7 @@ func (r *Runtime) Version(ctx context.Context) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
 	defer cancel()
 	out, err := launcher.command(ctx, "--version").Output()
 	if err != nil {
