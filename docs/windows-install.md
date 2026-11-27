@@ -116,6 +116,7 @@ Unblock-File .\node.exe
    - 「界面语言」可在简体中文和 English 之间切换。
    - 「模型供应商」可添加 API 密钥（OpenCode 引擎）。
 4. 右下角显示当前引擎。点击可在 **OpenCode v2** 和 **Pi Coding Agent** 之间切换。
+   - 新建工作区默认使用 Pi（若已安装且可运行），否则回退到 OpenCode；已有工作区保留各自保存的引擎选择。
    - OpenCode 已内置，开箱即用。
    - Pi 不随安装包提供，需要单独安装 Pi CLI；未安装时 Pi 选项不可用。
    - Windows 上直接运行 PATH 中的 `pi`（通过 cmd.exe 启动 `pi.cmd`），node 由 `pi.cmd` 自己查找，应用不预先定位 Pi；`pi --version` 有输出即视为可用。也可以设置 `MYGO_WORK_PI` 指向 `pi.exe` 或 `pi.cmd`，此时不要求 PATH 中有 `pi`。

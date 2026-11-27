@@ -39,6 +39,15 @@ func (d *Desktop) runtime(directory string) (agent.Runtime, error) {
 
 func (d *Desktop) Workspaces() []workspace.Folder { return d.folders.List() }
 
+// defaultRuntime prefers Pi for new workspaces and falls back to the bundled
+// OpenCode when Pi is not installed or cannot start.
+func (d *Desktop) defaultRuntime(ctx context.Context) string {
+	if d.PiAvailable(ctx) {
+		return piID
+	}
+	return openCodeID
+}
+
 func (d *Desktop) PickWorkspace(ctx context.Context) (*workspace.Folder, error) {
 	paths, err := mygo.Dialog.Open(mygo.OpenDialogOptions{
 		Parent: mygo.CallerWindow(ctx), Title: d.nativeLabel("添加工作区", "Add workspace"), ButtonLabel: d.nativeLabel("使用此文件夹", "Use Folder"),
@@ -47,7 +56,7 @@ func (d *Desktop) PickWorkspace(ctx context.Context) (*workspace.Folder, error) 
 	if err != nil || len(paths) == 0 {
 		return nil, err
 	}
-	folder, err := d.folders.Add(paths[0], openCodeID)
+	folder, err := d.folders.Add(paths[0], d.defaultRuntime(ctx))
 	return &folder, err
 }
 
