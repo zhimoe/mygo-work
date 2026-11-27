@@ -1,6 +1,6 @@
 # MyGo Work Windows 安装指南
 
-适用于源码构建的 v0.2.1 Windows amd64（x64）版本。安装包内置 OpenCode 2.3.2 的 JavaScript 构建和 Node.js 26.4.0，无需另外安装 Node.js 或 npm。应用会运行 `--version` 确认 OpenCode 可启动，但不再限制版本号。
+适用于源码构建的 v0.5.0 Windows amd64（x64）版本。安装包内置 OpenCode 2.3.2 的 JavaScript 构建和 Node.js 26.4.0，无需另外安装 Node.js 或 npm。应用会运行 `--version` 确认 OpenCode 可启动，但不再限制版本号。
 
 ## 1. 需要拷贝什么
 
@@ -8,12 +8,12 @@
 
 | 使用方式 | 需要拷贝 | 大小 |
 | --- | --- | --- |
-| 安装版（推荐） | 只拷贝 `mygo-work-setup-0.2.1-amd64.exe` 这一个文件 | 约 67 MB |
+| 安装版（推荐） | 只拷贝 `mygo-work-setup-0.5.0-amd64.exe` 这一个文件 | 约 67 MB |
 | 便携版 | 拷贝整个 `dist/windows-amd64/` 文件夹 | 约 273 MB（含安装器；只保留运行时约 193 MB） |
 
 便携版拷贝后可以删除以下内容，不影响运行：
 
-- `mygo-work-setup-0.2.1-amd64.exe`（安装器本身）
+- `mygo-work-setup-0.5.0-amd64.exe`（安装器本身）
 - `.mygo-files`（构建元数据）
 - `licenses/` 建议保留，用于第三方许可证合规
 
@@ -46,7 +46,7 @@ Windows on ARM 设备可以运行此 amd64 包（系统模拟），但更推荐�
 
 ## 3. 安装版
 
-1. 把 `mygo-work-setup-0.2.1-amd64.exe` 拷贝到 Windows 机器。
+1. 把 `mygo-work-setup-0.5.0-amd64.exe` 拷贝到 Windows 机器。
 2. 双击运行。
 3. 如果出现「Windows 已保护你的电脑」：
    - 点击「更多信息」→「仍要运行」。
@@ -65,7 +65,7 @@ Windows on ARM 设备可以运行此 amd64 包（系统模拟），但更推荐�
 静默安装（不创建桌面快捷方式）：
 
 ```bat
-mygo-work-setup-0.2.1-amd64.exe /S
+mygo-work-setup-0.5.0-amd64.exe /S
 ```
 
 安装位置、开始菜单快捷方式、卸载项都由安装器自动创建。安装目录下会包含：
@@ -192,17 +192,17 @@ Pi 不包含在安装包内。请先安装 Pi Coding Agent，运行 `pi` 完成 
 
 ## 8. 文件校验
 
-v0.2.1 amd64 构建产物 SHA-256：
+v0.5.0 amd64 构建产物 SHA-256：
 
 | 文件 | SHA-256 |
 | --- | --- |
-| `mygo-work-setup-0.2.1-amd64.exe` | `a5f236d8d92c6ffc79d5f7c149956db447e17477e65f46a33ae3698d2ae7c07b` |
-| `MyGoWork.exe` | `d8919b2e8b8107a46720bb507ed21c40c02044721a1fab88f29fd33517fe23aa` |
+| `mygo-work-setup-0.5.0-amd64.exe` | `4cf83d7160479eede8c4bd0353f7711c1cc9e9811a3f08b6d4e588ddb7e84d5c` |
+| `MyGoWork.exe` | `a1d4c3b27213e303bde147fbf608d6cca4a4d4e4ae07df03631072531eface42` |
 | `opencode.mjs` | `0b6dac3f5089361f571f84568fc443383daf13c85042246ccd5f2579c2bd4888` |
 | `node.exe` | `3193d7f751b8a07bd4acc70e81946ae9c6efdee83e07ad1c8d0e4089df7c5cef` |
 
 在 Windows 上校验：
 
 ```powershell
-Get-FileHash .\mygo-work-setup-0.2.1-amd64.exe -Algorithm SHA256
+Get-FileHash .\mygo-work-setup-0.5.0-amd64.exe -Algorithm SHA256
 ```

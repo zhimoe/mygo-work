@@ -8,15 +8,15 @@ MyGo Work 是一个面向本地文件和项目的 Agent 工作台。桌面界面
 
 ## 安装
 
-以下说明适用于仓库当前源码构建的 v0.2.1。已发布版本的可用平台以 GitHub Releases 附件为准。[从源码构建](#从源码构建)
+以下说明适用于仓库当前源码构建的 v0.5.0。已发布版本的可用平台以 GitHub Releases 附件为准。[从源码构建](#从源码构建)
 
 Windows 安装版与便携版的完整步骤见 [Windows 安装指南](docs/windows-install.md)。
 
 | 平台 | 安装方式 |
 | --- | --- |
 | macOS Apple Silicon | 打开 DMG，把 **MyGoWork.app** 拖进「应用程序」 |
-| Windows 11 x64 | 运行 `mygo-work-setup-0.2.1-amd64.exe`，系统需安装 [Microsoft Edge WebView2 Runtime](https://developer.microsoft.com/microsoft-edge/webview2/) |
-| Windows 11 ARM64 | 运行 `mygo-work-setup-0.2.1-arm64.exe`，系统需安装 [Microsoft Edge WebView2 Runtime](https://developer.microsoft.com/microsoft-edge/webview2/) |
+| Windows 11 x64 | 运行 `mygo-work-setup-0.5.0-amd64.exe`，系统需安装 [Microsoft Edge WebView2 Runtime](https://developer.microsoft.com/microsoft-edge/webview2/) |
+| Windows 11 ARM64 | 运行 `mygo-work-setup-0.5.0-arm64.exe`，系统需安装 [Microsoft Edge WebView2 Runtime](https://developer.microsoft.com/microsoft-edge/webview2/) |
 
 Windows amd64 包内置 **OpenCode 2.3.2 的 JavaScript 构建**和 Node.js 26.4.0，不需要另外安装 Node.js；Windows ARM64 包使用 OpenCode 官方构建。macOS 包使用 ad hoc 签名，尚未经过 Apple 公证。Windows 安装包采用未签名构建。也可以在本机从源码构建。应用会运行 `--version` 确认 OpenCode 可启动，但不再限制版本号。
 
